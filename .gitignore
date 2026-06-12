@@ -1,0 +1,23 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Runtime output directories
+extracted/
+
+# Temp files from extraction
+tmp_output_*.txt
+tmp_targets*.txt
+
+# Python virtual environments
+.venv/
+venv/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# claude
+*.claude
