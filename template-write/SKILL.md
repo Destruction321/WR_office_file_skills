@@ -42,7 +42,7 @@ Read the template to understand its structure, placeholders, headings, and forma
 
 **Reading approach:**
 
-- **Binary formats** (docx, xlsx, pptx) or non-ASCII paths: try the `read_documents` skill first. If that skill isn't available, use a Python script (e.g. `python-docx`) to extract text content.
+- **Binary formats** (docx, xlsx, pptx) or non-ASCII paths: use the `read_documents` skill first. If that skill isn't available, use `python -m extract_files` from `read_documents/`.
 - **Plain text** (`.md`, `.txt`, `.csv`): use the Read tool directly.
 
 **Common placeholder patterns to look for:**
@@ -72,23 +72,43 @@ cp -n "<TEMPLATE_PATH>" "<TEMPLATE_DIR>/<BASENAME>_<CONTENT_SUFFIX>.<EXT>"
 
 If the output file already exists (`cp -n` skips without overwriting), ask the user: overwrite, or use a different suffix?
 
-### Step 3 — Write content into the copy
+### Step 3 — Fill content with the reusable package (preferred)
 
-After reading the template structure, fill in the content according to format:
+Use the `fill_template` package (in `~/.claude/skills/template-write/fill_template/`) to fill placeholders.
+It preserves formatting better than ad-hoc scripts, and handles all binary formats consistently.
+
+```bash
+cd ~/.claude/skills/template-write && python -m fill_template \
+  --template "<OUTPUT_PATH>" \
+  --output "<OUTPUT_PATH>" \
+  --set name=张三 \
+  --set date="2025年3月"
+```
+
+Or use a JSON data file for more placeholders:
+
+```bash
+python -m fill_template \
+  --template template.docx \
+  --output filled.docx \
+  --data-file content.json
+```
+
+**Supported by the package:**
 
 | Format | Tool | Notes |
 | ------ | ---- | ----- |
-| `.docx` | `python-docx` | Fill paragraphs and table cells by matching placeholders or structure. For merged/nested tables, access cells via `table.cell(row, col).text`. Only modify targeted text — python-docx preserves everything else automatically. |
-| `.xlsx` | `openpyxl` | Fill by cell reference or named range. Handle merged cells — unmerge only when unavoidable. |
-| `.pptx` | `python-pptx` | Fill text in slide placeholders (`slide.placeholders[idx]`) or specific shapes. |
-| `.md` / `.txt` | Write tool | Use UTF-8 encoding. On Chinese Windows, if system locale is GBK, write UTF-8 with BOM explicitly to avoid garbled text. |
-| `.csv` | Write tool | Use UTF-8. Respect locale-appropriate delimiter: `,` (most locales) or `;` (some European/Asian Excel). |
+| `.docx` | `fill_template/docx_filler.py` | Run-level replacement — preserves bold/italic/font |
+| `.xlsx` | `fill_template/xlsx_filler.py` | Cell-by-cell replacement |
+| `.pptx` | `fill_template/pptx_filler.py` | Slide shape + table replacement |
+| `.md` / `.txt` | `fill_template/text_filler.py` | UTF-8 BOM on Chinese Windows |
+| `.csv` | `fill_template/text_filler.py` | Same as text |
 
-**Python execution:**
+> If the package is missing or broken, fall back to the manual Python script approach below.
 
-- **Command**: use `python` (works on both Windows and Linux). If `python` is not found, fall back to `python3`.
-- **Simple fill**: inline script via `python -c "..."` is fine. Watch out for quoting — if the content contains `"""` or complex escapes, write a temp `.py` file instead.
-- **Complex fill** (table manipulation, merged cells, multiple passes): write a `.py` file, review it, run it, then clean up.
+### Step 3 (fallback) — Manual Python script
+
+If the `fill_template` package cannot be used (e.g., imported but no CLI), write an inline script:
 
 ```bash
 python -c "
@@ -96,20 +116,19 @@ from docx import Document
 doc = Document(r'<OUTPUT_PATH>')
 for p in doc.paragraphs:
     if '{{name}}' in p.text:
-        p.text = p.text.replace('{{name}}', 'Replacement Content')
+        # Replace at run level to preserve formatting
+        for run in p.runs:
+            run.text = run.text.replace('{{name}}', 'Replacement Content')
 doc.save(r'<OUTPUT_PATH>')
 "
 ```
 
-> If the required Python package is missing, install it first:
->
-> ```bash
-> pip install python-docx  # or openpyxl, python-pptx
-> ```
+> For multi-run placeholders that span across runs, merge all runs into the first run first.
+> If the required Python package is missing, install it: `pip install python-docx`
 
 ### Step 4 — Verify
 
-Read back the output file (or a summary) to confirm the content was written correctly. For binary formats, use `read_documents` skill if available; otherwise use a Python extraction script.
+Read back the output file (or a summary) to confirm the content was written correctly. For binary formats, use `read_documents` skill if available; otherwise use Python extraction.
 
 ## Multiple templates in the same directory
 

@@ -72,18 +72,36 @@ pip install python-docx python-pptx pdfplumber PyMuPDF openpyxl olefile xlrd
 ├── read_documents/              # 文档读取技能
 │   ├── SKILL.md                 # 给 AI 的调用指引
 │   ├── extract_files/           # Python 包
-│   │   ├── cli.py               # 入口、编排
-│   │   ├── extractors.py        # 格式分发、文本提取
+│   │   ├── __init__.py          # 公开 API：extract_file, EXTRACTORS
+│   │   ├── __main__.py          # CLI 入口（python -m）
+│   │   ├── cli.py               # 参数解析、流程编排
+│   │   ├── discovery.py         # 文件发现、MSYS 路径转换
+│   │   ├── deps.py              # 自动安装依赖
 │   │   ├── assets.py            # 图片/媒体/OLE 资源提取
 │   │   ├── ole.py               # OLE 复合文档分解
 │   │   ├── section.py           # 按关键字过滤小节
-│   │   ├── discovery.py         # 文件发现、MSYS 路径转换
 │   │   ├── util.py              # 安全路径、魔数识别
-│   │   └── deps.py              # 自动安装依赖
+│   │   └── extractors/          # 按格式拆分的提取器子包
+│   │       ├── __init__.py      # 格式分发器 + extract_file()
+│   │       ├── common.py        # COM 清理、脚本路径
+│   │       ├── docx_extractor.py
+│   │       ├── pptx_extractor.py
+│   │       ├── xlsx_extractor.py
+│   │       └── pdf_extractor.py
 │   └── ps1_scripts/             # COM 回退脚本（仅 Windows）
 │       ├── extract_doc.ps1
 │       ├── extract_ppt.ps1
 │       └── extract_xls.ps1
 └── template-write/              # 模板填写技能
-    └── SKILL.md                 # 给 AI 的调用指引
+    ├── SKILL.md                 # 给 AI 的调用指引
+    └── fill_template/           # 可复用的模板填写包
+        ├── __init__.py
+        ├── __main__.py          # CLI 入口（python -m）
+        ├── cli.py               # 参数解析
+        ├── filler.py            # 主入口、格式分发
+        ├── deps.py              # 自动安装依赖
+        ├── docx_filler.py       # 保留格式的 run 级替换
+        ├── xlsx_filler.py       # 单元格级替换
+        ├── pptx_filler.py       # 幻灯片占位符替换
+        └── text_filler.py       # md/txt/csv 替换
 ```

@@ -8,13 +8,13 @@ from tempfile import mkdtemp
 def mktemp_in_dir(filepath: Path, prefix: str = 'tmp_') -> Path:
     """
     在源文件目录的 temp/ 子目录下创建唯一临时文件夹。
-    
+
     Args:
-        filepath (Path): 参考文件路径，临时目录将创建在该文件所在目录的 temp/ 子目录下。
-        prefix (str): 临时目录文件名称前缀，默认为 'tmp_'。
-    
+        filepath: 参考文件路径，临时目录将创建在该文件所在目录的 temp/ 子目录下。
+        prefix: 临时目录名称前缀，默认为 'tmp_'。
+
     Returns:
-        tmp_path (Path): 创建的临时目录路径。
+        创建的临时目录路径。
     """
     temp_base = filepath.parent / 'temp'
     temp_base.mkdir(parents=True, exist_ok=True)
@@ -30,7 +30,7 @@ def safe_open_path(filepath: Path):
     该上下文管理器透明地将文件复制到纯 ASCII 名称的临时目录，返回该路径，使用后自动清理。
 
     Args:
-        filepath (Path): 原始文件路径，可能包含非 ASCII 字符。
+        filepath: 原始文件路径，可能包含非 ASCII 字符。
     """
     if not _has_nonascii(str(filepath)):
         yield filepath
@@ -42,17 +42,16 @@ def safe_open_path(filepath: Path):
 
 
 def _has_nonascii(s: str) -> bool:
-    """检查 *s* 是否包含非 ASCII 字符。"""
+    """检查字符串是否包含非 ASCII 字符。"""
     try:
         s.encode('ascii')
         return False
-    
     except UnicodeEncodeError:
         return True
 
 
 # ===================================================================
-#  魔数识别
+#  魔数识别 — 通过文件头部字节识别文件类型
 # ===================================================================
 
 MAGIC_SIGNATURES: list[tuple[bytes, str, str]] = [
@@ -77,16 +76,15 @@ MAGIC_SIGNATURES: list[tuple[bytes, str, str]] = [
 
 def identify_data(data: bytes) -> tuple[str, str]:
     """
-    根据魔数返回二进制数据的（扩展名，描述）。
-    
+    根据头部魔数识别二进制数据的文件类型。
+
     Args:
-        data (bytes): 待识别的二进制数据。
-        
+        data: 待识别的二进制数据（至少前 64 字节）。
+
     Returns:
-        ext, desc (tuple[str, str]): 识别出的文件扩展名和描述，未识别时返回 ('.bin', '未知二进制')。
+        (扩展名, 描述) 元组。未识别时返回 ('.bin', '未知二进制')。
     """
     for magic, ext, desc in MAGIC_SIGNATURES:
         if data[:len(magic)] == magic:
             return ext, desc
-    
     return '.bin', '未知二进制'

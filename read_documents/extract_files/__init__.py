@@ -6,7 +6,7 @@
     normalize_path(path) -> str
     EXTRACTORS  — 格式扩展名 -> 处理函数映射
 """
-from .extractors import extract_file, EXTRACTORS
 from .discovery import normalize_path
+from .extractors import extract_file, EXTRACTORS
 
 __all__ = ['extract_file', 'normalize_path', 'EXTRACTORS']

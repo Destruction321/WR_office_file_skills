@@ -1,15 +1,16 @@
-"""依赖管理 — 自动安装缺失的 Python 包。用的时候发现缺了再装。"""
-
+"""自动安装缺失的 Python 依赖 — 用的时候发现缺了再装。"""
 from importlib import import_module
 from subprocess import check_call
-from sys import executable, stderr
+from sys import executable
 
 
 def _install_one(pip_name):
     """安装单个 pip 包，失败时抛异常。"""
-    pip_cmd = [executable, '-m', 'pip', 'install', pip_name]
-    print(f'正在安装 {pip_name} ...', file=stderr)
-    check_call(pip_cmd, timeout=180)
+    print(f'正在安装 {pip_name} ...')
+    check_call(
+        [executable, '-m', 'pip', 'install', pip_name],
+        timeout=180,
+    )
 
 
 def ensure_import(pip_name, import_name=None, attr=None):

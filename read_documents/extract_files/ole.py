@@ -2,6 +2,7 @@
 from pathlib import Path
 from zipfile import ZipFile
 
+from .deps import ensure_import
 from .util import identify_data, MAGIC_SIGNATURES
 
 
@@ -9,65 +10,71 @@ def decompose_ole_object(filepath: Path, out_dir: Path) -> list[tuple[str | None
     """
     解析 OLE 嵌入对象（来自 OOXML embeddings/ 的 .bin），提取原生数据。
 
+    通过 olefile 库打开 OLE 容器，读取 Ole10Native 流，
+    识别嵌入文件的真实类型并提取到输出目录。
+
     Args:
-        filepath (Path): OLE 对象的 .bin 文件路径。
-        out_dir (Path): 提取出的文件输出目录（会自动创建）。
+        filepath: OLE 对象的 .bin 文件路径。
+        out_dir: 提取出的文件输出目录（自动创建）。
 
     Returns:
-        extracted (list[tuple[str | None, str]]): 提取的文件路径和描述的元组列表。
+        (文件路径或 None, 描述) 元组的列表。
+        None 表示提取失败或加密条目。
     """
     extracted: list[tuple[str | None, str]] = []
     if not filepath.exists() or filepath.stat().st_size < 64:
         return extracted
 
     try:
-        from olefile import OleFileIO
-        ole = OleFileIO(str(filepath))
-
-        native_data: bytes | None = None
-        for parts in ole.listdir():
-            name = parts[-1] if parts else ''
-            if 'Ole10Native' in name:
-                native_data = ole.openstream(parts).read()
-                break
-
-        ole.close()
-
-        if native_data is None:
-            return extracted
-
-        offset_info = _find_ole_embedded_offset(native_data)
-        if offset_info is None:
-            return extracted
-        
-        strings, data_start = offset_info
-
-        raw_data = native_data[data_start:]
-        ext, desc = identify_data(raw_data)
-        filename = strings[0] if strings else 'embedded_object'
-        stem = Path(filename).stem if '.' in filename else filename
-        stem = stem.strip().replace('\x00', '').replace('\x01', '') or 'embedded'
-        out_path = out_dir / f'{stem}{ext}'
-        out_dir.mkdir(parents=True, exist_ok=True)
-        out_path.write_bytes(raw_data)
-        extracted.append((str(out_path), desc))
-
-        if ext == '.zip':
-            _extract_nested_zip(out_path, stem, out_dir, extracted)
-
+        OleFileIO = ensure_import('olefile', attr='OleFileIO')
     except ImportError:
-        pass
-    
-    except Exception as e:
-        from sys import stderr
-        print(f'  [警告] OLE 分解失败: {e}', file=stderr)
+        return extracted
+    else:
+        try:
+            ole = OleFileIO(str(filepath))  # type: ignore[operator]
+
+            native_data: bytes | None = None
+            for parts in ole.listdir():
+                name = parts[-1] if parts else ''
+                if 'Ole10Native' in name:
+                    native_data = ole.openstream(parts).read()
+                    break
+
+            ole.close()
+
+            if native_data is None:
+                return extracted
+
+            offset_info = _find_ole_embedded_offset(native_data)
+            if offset_info is None:
+                return extracted
+
+            strings, data_start = offset_info
+
+            raw_data = native_data[data_start:]
+            ext, desc = identify_data(raw_data)
+            filename = strings[0] if strings else 'embedded_object'
+            stem = Path(filename).stem if '.' in filename else filename
+            stem = stem.strip().replace('\x00', '').replace('\x01', '') or 'embedded'
+            out_path = out_dir / f'{stem}{ext}'
+            out_dir.mkdir(parents=True, exist_ok=True)
+            out_path.write_bytes(raw_data)
+            extracted.append((str(out_path), desc))
+
+            # 如果提取出来的是 ZIP，递归解压
+            if ext == '.zip':
+                _extract_nested_zip(out_path, stem, out_dir, extracted)
+
+        except Exception as e:
+            from sys import stderr
+            print(f'  [警告] OLE 分解失败: {e}', file=stderr)
 
     return extracted
 
 
 def _find_ole_embedded_offset(native_data: bytes) -> tuple[list[str], int] | None:
     """
-    扫描 OLE10Native 流，定位嵌入文件的起始偏移和文件名。
+    扫描 Ole10Native 流，定位嵌入文件的起始偏移和文件名。
 
     在 Ole10Native 二进制数据中，嵌入文件的原始文件名以空字节结尾的
     ASCII 字符串形式存储在头部，实际文件数据紧随其后。
@@ -109,11 +116,16 @@ def _find_ole_embedded_offset(native_data: bytes) -> tuple[list[str], int] | Non
 
     return strings, data_start
 
+
 def _extract_nested_zip(out_path: Path,
                         stem: str,
                         out_dir: Path,
                         extracted: list[tuple[str | None, str]]) -> None:
-    """递归提取嵌入的 ZIP 压缩包内的所有条目。"""
+    """
+    递归提取嵌入的 ZIP 压缩包内的所有条目。
+
+    处理加密条目时保留原文件，记录提示信息。
+    """
     zip_dir = out_dir / f'{stem}_contents'
     try:
         zip_dir.mkdir(parents=True, exist_ok=True)
@@ -123,7 +135,6 @@ def _extract_nested_zip(out_path: Path,
                     continue
 
                 # 保留相对目录结构，避免不同子目录下同名文件互相覆盖
-                # （例如 dir1/data.bin 与 dir2/data.bin）。
                 safe_name = name.lstrip('/').replace('..', '_')
                 member_path = zip_dir / safe_name
                 member_path.parent.mkdir(parents=True, exist_ok=True)
@@ -131,9 +142,11 @@ def _extract_nested_zip(out_path: Path,
                 if z.getinfo(name).flag_bits & 0x1:
                     try:
                         member_path.write_bytes(z.read(name, pwd=b''))
-                        extracted.append((str(member_path), f'加密条目(内容已加密): {safe_name}'))
+                        extracted.append(
+                            (str(member_path), f'加密条目(内容已加密): {safe_name}'))
                     except RuntimeError:
-                        extracted.append((None, f'  └─ {name} (加密条目，原ZIP已保留)'))
+                        extracted.append(
+                            (None, f'  └─ {name} (加密条目，原ZIP已保留)'))
                     continue
 
                 with z.open(name) as src:
@@ -147,6 +160,5 @@ def _extract_nested_zip(out_path: Path,
             extracted.append((None, f'  └─ ZIP包含加密条目，原文件已保留: {out_path}'))
         else:
             extracted.append((None, f'  └─ ZIP提取错误: {e}'))
-    
     except Exception as e:
         extracted.append((None, f'  └─ ZIP提取错误: {e}'))

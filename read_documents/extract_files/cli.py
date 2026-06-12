@@ -4,7 +4,6 @@ from pathlib import Path
 from sys import exit, stderr
 
 from . import discovery
-from .deps import check_and_install_deps
 from .extractors import extract_file
 from .section import filter_section
 
@@ -61,13 +60,9 @@ def main() -> None:
             print(f)
         exit(0)
 
-    # --- 自动安装缺失的包 ---
-    check_and_install_deps(file_list)
-
-    # --- 逐个提取文件 ---
+    # --- 逐个提取文件（各格式提取器内部自行处理缺失依赖） ---
     all_lines: list[str] = []
     for i, filepath in enumerate(file_list, 1):
-        # 单个文件路径也需要标准化（可能是 MSYS 风格）
         filepath = discovery.normalize_path(filepath)
         all_lines.append(f'{"=" * 60}')
         all_lines.append(f'[{i}/{len(file_list)}] {Path(filepath).name}')
@@ -80,15 +75,13 @@ def main() -> None:
             if args.section:
                 lines = filter_section(lines, args.section)
             all_lines.extend(lines)
-
         except Exception as e:
             all_lines.append(f'[提取 {filepath} 时出错: {e}]')
-
         all_lines.append('')
 
     # --- 写入输出 ---
     if args.paths_file:
-        # DIRECT 模式：输出到 paths-file 同目录（约定路径，无需 stderr 通知）
+        # DIRECT 模式：输出到 paths-file 同目录
         output_dir = Path(args.paths_file).parent
     else:
         # SEARCH 模式：输出到第一个文件所在目录的 temp/
