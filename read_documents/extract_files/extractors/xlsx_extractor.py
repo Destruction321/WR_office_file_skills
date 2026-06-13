@@ -1,8 +1,8 @@
 """
-.xls / .xlsx 提取器。
-
-先尝试 openpyxl / xlrd，再 COM 回退处理旧 .xls 格式。
+# `.xls` / `.xlsx` 提取器。
+- 先尝试 `openpyxl` / `xlrd`，再 COM 回退处理旧 `.xls` 格式。
 """
+
 from pathlib import Path
 from subprocess import run, DEVNULL, TimeoutExpired
 from sys import platform, stderr
@@ -14,16 +14,27 @@ from ..util import safe_open_path, mktemp_in_dir
 
 
 def extract_xlsx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
-    """通过 openpyxl 提取 .xlsx 文件，逐工作表按行提取。"""
+    """
+    ## 通过 `openpyxl` 提取 `.xlsx` 文件，逐工作表按行提取。
+
+    Args:
+        filepath (Path): 文档文件路径。
+        assets_dir (Path | None): 资源提取目标目录（可选）。
+
+    Returns:
+        lines (list[str]): 提取出的文本行，失败时返回错误信息。
+    """
     lines: list[str] = []
     assets_result: dict[str, list[str]] = {}
 
     if assets_dir:
         assets_result = assets.extract_ooxml_assets(
-            filepath, assets_dir / filepath.stem, filepath.suffix.lower())
+            filepath, assets_dir / filepath.stem, filepath.suffix.lower()
+        )
 
     try:
         load_workbook = ensure_import('openpyxl', attr='load_workbook')  # type: ignore[assignment]
+    
     except ImportError:
         return ['[Error: openpyxl 未安装。执行: pip install openpyxl]']
 
@@ -56,19 +67,25 @@ def extract_xlsx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
 
 def extract_xls(filepath: Path, assets_dir: Path | None = None) -> list[str]:
     """
-    通过 xlrd 提取旧 .xls（BIFF）文件，再 COM 回退。
+    ## 通过 `xlrd` 提取旧 `.xls`（BIFF）文件，再 COM 回退。
+    - `xlrd` 能处理大部分 `.xls`，失败时自动走 COM 路径。
 
-    xlrd 能处理大部分 .xls，失败时自动走 COM 路径。
+    Args:
+        filepath (Path): 文档文件路径。
+        assets_dir (Path | None): 资源提取目标目录（可选）。
+
+    Returns:
+        lines (list[str]): 提取出的文本行，失败时返回错误信息。
     """
     lines: list[str] = []
     assets_result: dict[str, list[str]] = {}
 
     if assets_dir:
-        assets_result = assets.extract_ooxml_assets(
-            filepath, assets_dir / filepath.stem, '.xls')
+        assets_result = assets.extract_ooxml_assets(filepath, assets_dir / filepath.stem, '.xls')
 
     try:
         open_workbook = ensure_import('xlrd', attr='open_workbook')  # type: ignore[assignment]
+    
     except ImportError:
         print('  [警告] xlrd 未安装，尝试 COM 回退 ...', file=stderr)
         return _extract_xls_com(filepath, assets_dir)
@@ -78,8 +95,7 @@ def extract_xls(filepath: Path, assets_dir: Path | None = None) -> list[str]:
             wb = open_workbook(str(safe_path))  # type: ignore[operator]
             for s in range(wb.nsheets):
                 sheet = wb.sheet_by_index(s)
-                lines.append(
-                    f'--- Sheet: {sheet.name} ({sheet.nrows} 行 x {sheet.ncols} 列) ---')
+                lines.append(f'--- Sheet: {sheet.name} ({sheet.nrows} 行 x {sheet.ncols} 列) ---')
                 for row_idx in range(sheet.nrows):
                     cells = [
                         sheet.cell_value(row_idx, col_idx).replace('\n', ' ').replace('\r', '')
@@ -90,8 +106,8 @@ def extract_xls(filepath: Path, assets_dir: Path | None = None) -> list[str]:
         if assets_result:
             assets.append_assets_summary(lines, assets_result)
         return lines
+    
     except Exception as e:
-
         print(f'  [警告] xlrd 失败: {e}，尝试 COM 回退 ...', file=stderr)
 
     return _extract_xls_com(filepath, assets_dir)
@@ -101,6 +117,7 @@ def _extract_xls_com(filepath: Path, assets_dir: Path | None = None) -> list[str
     """通过 Windows COM 提取旧 .xls 文件。"""
     if platform != 'win32':
         return ['[Error: 旧格式 .xls 提取需要 Windows + Microsoft Office]']
+    
     if not Path(XLS_SCRIPT).exists():
         return ['[Error: 找不到 Excel 提取脚本。请先安装 xlrd: pip install xlrd]']
 

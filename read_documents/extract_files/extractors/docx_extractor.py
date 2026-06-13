@@ -1,9 +1,8 @@
 """
-.doc / .docx 提取器。
-
-先尝试 python-docx（可处理伪装成 .doc 的 .docx），
-再 COM 回退处理旧 .doc 格式。
+# `.doc` / `.docx` 提取器。
+- 先尝试 `python-docx`（可处理伪装成 `.doc` 的 `.docx`），再 COM 回退处理旧 `.doc` 格式。
 """
+
 from pathlib import Path
 from subprocess import run, DEVNULL, TimeoutExpired
 from sys import platform
@@ -17,37 +16,56 @@ from ..util import safe_open_path, mktemp_in_dir
 
 def extract_doc(filepath: Path, assets_dir: Path | None = None) -> list[str]:
     """
-    先尝试 python-docx（可处理伪装成 .doc 的 .docx），再 COM 回退。
+    ## 提取旧格式 `.doc` 文件。
+    
+    - 先尝试 `python-docx`（可处理伪装成 `.doc` 的 `.docx`），再 COM 回退。
+    - 如果 `python-docx` 只返回了错误信息（全是 `[Error...]` 或空），
+    说明不是 `.docx` 变体，走 COM 路径。
 
-    如果 python-docx 只返回了错误信息（全是 [Error...] 或空），
-    说明不是 .docx 变体，走 COM 路径。
+    Args:
+        filepath (Path): 文档文件路径。
+        assets_dir (Path | None): 资源提取目标目录（可选）。
+
+    Returns:
+        lines (list[str]): 提取出的文本行，失败时返回错误信息。
     """
     try:
         result = extract_docx(filepath, assets_dir)
         if all(not line or line.startswith('[') for line in result):
             raise ValueError('python-docx 仅返回了错误信息')
         return result
+    
     except Exception:
         return _extract_doc_com(filepath, assets_dir)
 
 
 def extract_docx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
-    """通过 python-docx 提取 .docx 文件，保留段落/表格交错顺序和标题样式。"""
+    """
+    - 通过 `python-docx` 提取 `.docx` 文件，保留段落/表格交错顺序和标题样式。
+
+    Args:
+        filepath (Path): 文档文件路径。
+        assets_dir (Path | None): 资源提取目标目录（可选）。
+
+    Returns:
+        lines (list[str]): 提取出的文本行，失败时返回错误信息。
+    """
     lines: list[str] = []
     assets_result: dict[str, list[str]] = {}
 
     if assets_dir:
-        assets_result = assets.extract_ooxml_assets(
-            filepath, assets_dir / filepath.stem, '.docx')
+        assets_result = assets.extract_ooxml_assets(filepath, assets_dir / filepath.stem, '.docx')
 
     try:
         Document = ensure_import('python-docx', 'docx', attr='Document')  # type: ignore[assignment]
+    
     except ImportError:
         return ['[Error: python-docx 未安装。执行: pip install python-docx]']
 
     with safe_open_path(filepath) as safe_path:
         try:
             doc = Document(str(safe_path))  # type: ignore[operator]
+        
         except Exception as e:
             return [f'[Error: 用 python-docx 打开 .docx 失败: {e}]']
 
@@ -134,19 +152,24 @@ def _get_heading_style_level(child) -> int | None:
     检查段落是否应用了 Word 标题样式。
 
     匹配 "Heading 1"、"Heading 2" 等样式名，返回对应级别（1-9）。
+    
     没有标题样式则返回 None。
     """
     from docx.oxml.ns import qn
     pPr = child.find(qn('w:pPr'))
     if pPr is None:
         return None
+    
     pStyle = pPr.find(qn('w:pStyle'))
     if pStyle is None:
         return None
+    
     style_val = pStyle.get(qn('w:val'), '')
     if not style_val.lower().startswith('heading'):
         return None
+    
     try:
         return int(style_val.split()[-1])
+    
     except ValueError:
         return 1  # 解析失败默认返回级别 1

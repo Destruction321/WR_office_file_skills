@@ -20,13 +20,13 @@ _CHINESE_HEADING_PATTERNS: list[tuple[Pattern, int]] = [
 
 def detect_chinese_heading(text: str) -> int | None:
     """
-    从中文字段模式检测标题级别，非标题则返回 None。
+    ## 从中文字段模式检测标题级别，非标题则返回 None。
 
     Args:
-        text: 要检测的文本行。
+        text (str): 要检测的文本行。
 
     Returns:
-        标题级别（1-3）或 None（非标题）。
+        level (int | None): 标题级别（1-3）或 None（非标题）。
     """
     if len(text) > 100:
         return None
@@ -44,17 +44,16 @@ def detect_chinese_heading(text: str) -> int | None:
 
 def filter_section(lines: list[str], section: str) -> list[str]:
     """
-    过滤提取出的文本，仅保留匹配 section 关键字的小节。
-
-    自动检测输出结构类型（Markdown 标题 / 幻灯片 / 页面 / 工作表）
-    并选择对应的过滤策略；无匹配结构时回退到关键字上下文提取。
+    ## 过滤提取出的文本，仅保留匹配 section 关键字的小节。
+    - 自动检测输出结构类型（Markdown 标题 / 幻灯片 / 页面 / 工作表）并选择对应的过滤策略；
+    无匹配结构时回退到关键字上下文提取。
 
     Args:
-        lines: 提取出的全部文本行。
-        section: 要匹配的小节关键字。
+        lines (list[str]): 提取出的全部文本行。
+        section (str): 要匹配的小节关键字。
 
     Returns:
-        仅包含匹配小节的行。无匹配时返回 [未找到...] 单行列表。
+        list[str]: 仅包含匹配小节的行。无匹配时返回 [未找到...] 单行列表。
     """
     if not section:
         return lines
@@ -82,8 +81,7 @@ def filter_section(lines: list[str], section: str) -> list[str]:
 
 def _filter_by_heading_markers(lines: list[str], section_low: str) -> list[str]:
     """
-    按 Markdown 标题标记（# ## ###）过滤。
-
+    按 Markdown 标题标记（# ## ###）过滤,
     从匹配关键字的标题开始，到同级或更高级别标题结束。
     """
     result: list[str] = []
@@ -101,6 +99,7 @@ def _filter_by_heading_markers(lines: list[str], section_low: str) -> list[str]:
                 section_level = level
                 result.append(line)
                 continue
+            
             elif in_section and level <= section_level:
                 break
 
@@ -118,8 +117,7 @@ def _filter_by_unit_markers(lines: list[str],
                             marker_prefix: str,
                             context: int = 1) -> list[str]:
     """
-    过滤包含关键字的幻灯片/页面/工作表，带 context 个相邻单元。
-
+    过滤包含关键字的幻灯片/页面/工作表，带 context 个相邻单元,
     例如 context=1 会同时包含匹配幻灯片的前后各一页。
     """
     units: list[list[str]] = []

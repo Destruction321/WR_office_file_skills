@@ -1,9 +1,8 @@
 """
-.ppt / .pptx 提取器。
-
-先尝试 python-pptx（可处理伪装成 .ppt 的 .pptx），
-再 COM 回退处理旧 .ppt 格式。
+# `.ppt` / `.pptx` 提取器。
+- 先尝试 `python-pptx`（可处理伪装成 `.ppt` 的 `.pptx`），再 COM 回退处理旧 `.ppt` 格式。
 """
+
 from pathlib import Path
 from subprocess import run, DEVNULL, TimeoutExpired
 from sys import platform
@@ -15,7 +14,16 @@ from ..util import safe_open_path, mktemp_in_dir
 
 
 def extract_pptx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
-    """通过 python-pptx 提取 .pptx 文件，逐幻灯片提取文字和表格。"""
+    """
+    ## 通过 `python-pptx` 提取 `.pptx` 文件，逐幻灯片提取文字和表格。
+
+    Args:
+        filepath (Path): 文档文件路径。
+        assets_dir (Path | None): 资源提取目标目录（可选）。
+
+    Returns:
+        lines (list[str]): 提取出的文本行，失败时返回错误信息。
+    """
     assets_result: dict[str, list[str]] = {}
 
     if assets_dir:
@@ -24,6 +32,7 @@ def extract_pptx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
 
     try:
         Presentation = ensure_import('python-pptx', 'pptx', attr='Presentation')  # type: ignore[assignment]
+    
     except ImportError:
         return ['[Error: python-pptx 未安装。执行: pip install python-pptx]']
 
@@ -61,16 +70,23 @@ def extract_pptx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
 
 def extract_ppt(filepath: Path, assets_dir: Path | None = None) -> list[str]:
     """
-    先尝试 python-pptx，失败时回退 COM（旧格式兼容）。
+    ## 先尝试 `python-pptx`，失败时回退 COM（旧格式兼容）。
+    - `python-pptx` 能打开部分旧 `.ppt` 文件（OOXML 变体），
+    真正的旧 `.ppt`（二进制格式）才会走到 COM 路径。
 
-    python-pptx 能打开部分旧 .ppt 文件（OOXML 变体），
-    真正的旧 .ppt（二进制格式）才会走到 COM 路径。
+    Args:
+        filepath (Path): 文档文件路径。
+        assets_dir (Path | None): 资源提取目标目录（可选）。
+
+    Returns:
+        lines (list[str]): 提取出的文本行，失败时返回错误信息。
     """
     try:
         result = extract_pptx(filepath, assets_dir)
         if all(not line or line.startswith('[') for line in result):
             raise ValueError('python-pptx 仅返回了错误信息')
         return result
+    
     except Exception:
         return _extract_ppt_com(filepath, assets_dir)
 

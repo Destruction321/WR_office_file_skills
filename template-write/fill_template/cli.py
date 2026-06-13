@@ -1,6 +1,4 @@
-"""
-CLI 入口 — 支持命令行直接调用。
-"""
+"""CLI 入口 — 支持命令行直接调用。"""
 from argparse import ArgumentParser
 from json import load, loads
 from pathlib import Path
@@ -9,7 +7,7 @@ from sys import exit, stderr
 from .filler import fill_template
 
 
-def main():
+def main() -> None:
     parser = ArgumentParser(description='在模板文件中替换占位符')
     parser.add_argument('--template', '-t', required=True, help='模板文件路径')
     parser.add_argument('--output', '-o', required=True, help='输出文件路径')
@@ -28,10 +26,11 @@ def main():
     args = parser.parse_args()
 
     # 从所有来源合并占位符数据
-    content_map = {}
+    content_map: dict[str, str] = {}
 
     if args.data:
         content_map.update(loads(args.data))
+    
     if args.data_file:
         with open(args.data_file, 'r', encoding='utf-8') as f:
             content_map.update(load(f))
@@ -50,16 +49,19 @@ def main():
     try:
         result = fill_template(args.template, args.output, content_map, args.pattern)
         print(f'已写入: {result}')
+    
     except FileExistsError:
-        if args.force:
-            existing = Path(args.output)
-            if existing.exists():
-                existing.unlink()
-            result = fill_template(args.template, args.output, content_map, args.pattern)
-            print(f'已写入（覆盖）: {result}')
-        else:
+        if not args.force:
             print(f'错误: {args.output} 已存在。使用 --force 覆盖。', file=stderr)
             exit(1)
+            
+        existing = Path(args.output)
+        if existing.exists():
+            existing.unlink()
+        
+        result = fill_template(args.template, args.output, content_map, args.pattern)
+        print(f'已写入（覆盖）: {result}')
+            
     except Exception as e:
         print(f'错误: {e}', file=stderr)
         exit(1)

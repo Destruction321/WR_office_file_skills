@@ -1,8 +1,8 @@
 """
-公共工具 — COM 僵尸清理、脚本路径解析。
-
-各格式提取器共用这里的函数和路径常量。
+# 公共工具 — COM 僵尸清理、脚本路径解析。
+- 各格式提取器共用这里的函数和路径常量。
 """
+
 from pathlib import Path
 from subprocess import run
 from sys import platform
@@ -10,13 +10,16 @@ from sys import platform
 
 def kill_orphan_com(process_name: str) -> None:
     """
-    清理超时后残留的 Office COM 僵尸进程。
+    ## 清理超时后残留的 Office COM 僵尸进程。
 
-    当 subprocess.run 抛出 TimeoutExpired 时子进程已被杀掉，
-    但 PowerShell 启动的 COM 服务器可能仍残留在系统中。
+    - 当 subprocess.run 抛出 TimeoutExpired 时子进程已被杀掉，但
+    PowerShell 启动的 COM 服务器可能仍残留在系统中。
 
-    使用 taskkill /FI "STATUS eq NOT RESPONDING"，
-    只杀死无响应的进程，不影响用户正在使用的 Office 窗口。
+    - 使用 taskkill /FI
+    "STATUS eq NOT RESPONDING"，只杀死无响应的进程，不影响用户正在使用的 Office 窗口。
+
+    Args:
+        process_name (str): 进程映像名称（如 'WINWORD.EXE'）。
     """
     if platform != 'win32':
         return
@@ -28,6 +31,7 @@ def kill_orphan_com(process_name: str) -> None:
              '/FI', 'STATUS eq NOT RESPONDING'],
             capture_output=True, timeout=5,
         )
+    
     except Exception:
         pass  # 尽力而为，不因清理失败而崩溃
 

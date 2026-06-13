@@ -42,11 +42,13 @@ def main() -> None:
 
     if args.paths_file:
         file_list = discovery.read_paths_file(args.paths_file)
+    
     elif args.root:
         if not Path(args.root).is_dir():
             print(f'[Error] --root 不是目录: {args.root}', file=stderr)
             exit(1)
         file_list = discovery.find_files(args.root, pattern=args.glob, max_depth=args.max_depth)
+    
     else:
         parser.error('必须指定 --root 或 --paths-file 之一。')
 
@@ -75,14 +77,17 @@ def main() -> None:
             if args.section:
                 lines = filter_section(lines, args.section)
             all_lines.extend(lines)
+        
         except Exception as e:
             all_lines.append(f'[提取 {filepath} 时出错: {e}]')
+        
         all_lines.append('')
 
     # --- 写入输出 ---
     if args.paths_file:
         # DIRECT 模式：输出到 paths-file 同目录
         output_dir = Path(args.paths_file).parent
+    
     else:
         # SEARCH 模式：输出到第一个文件所在目录的 temp/
         output_dir = Path(file_list[0]).parent / 'temp'
