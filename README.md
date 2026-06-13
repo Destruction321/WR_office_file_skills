@@ -55,7 +55,7 @@ Claude Code 技能集合 —— 增强 AI 对文档文件的读写能力。
 
 ```bash
 # 克隆到 Claude Code 技能目录
-git clone https://github.com/Destruction321/read_documents.git ~/.claude/skills
+git clone https://github.com/Destruction321/WR_office_file_skills.git ~/.claude/skills
 
 # 安装全部依赖（如需）
 pip install python-docx python-pptx pdfplumber PyMuPDF openpyxl olefile xlrd
@@ -72,38 +72,38 @@ pip install python-docx python-pptx pdfplumber PyMuPDF openpyxl olefile xlrd
 ├── README.md                    # 本文件 — 项目说明
 ├── .gitignore
 ├── read_documents/              # 文档读取技能
-│   ├── SKILL.md                 # 给 AI 的调用指引
-│   ├── extract_files/           # Python 包
-│   │   ├── __init__.py          # 公开 API：extract_file, EXTRACTORS
-│   │   ├── __main__.py          # CLI 入口（python -m）
-│   │   ├── cli.py               # 参数解析、流程编排
-│   │   ├── discovery.py         # 文件发现、MSYS 路径转换
-│   │   ├── deps.py              # 自动安装依赖
-│   │   ├── assets.py            # 图片/媒体/OLE 资源提取
-│   │   ├── ole.py               # OLE 复合文档分解
-│   │   ├── section.py           # 按关键字过滤小节
-│   │   ├── util.py              # 安全路径、魔数识别
-│   │   └── extractors/          # 按格式拆分的提取器子包
-│   │       ├── __init__.py      # 格式分发器 + extract_file()
-│   │       ├── common.py        # COM 清理、脚本路径
-│   │       ├── docx_extractor.py
-│   │       ├── pptx_extractor.py
-│   │       ├── xlsx_extractor.py
-│   │       └── pdf_extractor.py
-│   └── ps1_scripts/             # COM 回退脚本（仅 Windows）
-│       ├── extract_doc.ps1
-│       ├── extract_ppt.ps1
-│       └── extract_xls.ps1
+│    ├── SKILL.md                 # 给 AI 的调用指引
+│    ├── extract_files/           # Python 包
+│    │    ├── __init__.py          # 公开 API：extract_file, EXTRACTORS
+│    │    ├── __main__.py          # CLI 入口（python -m）
+│    │    ├── cli.py               # 参数解析、流程编排
+│    │    ├── discovery.py         # 文件发现、MSYS 路径转换
+│    │    ├── deps.py              # 自动安装依赖
+│    │    ├── assets.py            # 图片/媒体/OLE 资源提取
+│    │    ├── ole.py               # OLE 复合文档分解
+│    │    ├── section.py           # 按关键字过滤小节
+│    │    ├── util.py              # 安全路径、魔数识别
+│    │    └── extractors/          # 按格式拆分的提取器子包
+│    │         ├── __init__.py      # 格式分发器 + extract_file()
+│    │         ├── common.py        # COM 清理、脚本路径
+│    │         ├── docx_extractor.py
+│    │         ├── pptx_extractor.py
+│    │         ├── xlsx_extractor.py
+│    │         └── pdf_extractor.py
+│    └── ps1_scripts/             # COM 回退脚本（仅 Windows）
+│         ├── extract_doc.ps1
+│         ├── extract_ppt.ps1
+│         └── extract_xls.ps1
 └── template-write/              # 模板填写技能
-    ├── SKILL.md                 # 给 AI 的调用指引
-    └── fill_template/           # 可复用的模板填写包
-        ├── __init__.py
-        ├── __main__.py          # CLI 入口（python -m）
-        ├── cli.py               # 参数解析
-        ├── filler.py            # 主入口、格式分发
-        ├── deps.py              # 自动安装依赖
-        ├── docx_filler.py       # 保留格式的 run 级替换
-        ├── xlsx_filler.py       # 单元格级替换
-        ├── pptx_filler.py       # 幻灯片占位符替换
-        └── text_filler.py       # md/txt/csv 替换
+     ├── SKILL.md                 # 给 AI 的调用指引
+     └── fill_template/           # 可复用的模板填写包
+          ├── __init__.py
+          ├── __main__.py          # CLI 入口（python -m）
+          ├── cli.py               # 参数解析
+          ├── filler.py            # 主入口、格式分发
+          ├── deps.py              # 自动安装依赖
+          ├── docx_filler.py       # 保留格式的 run 级替换
+          ├── xlsx_filler.py       # 单元格级替换
+          ├── pptx_filler.py       # 幻灯片占位符替换
+          └── text_filler.py       # md/txt/csv 替换
 ```
