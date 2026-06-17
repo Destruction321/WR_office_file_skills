@@ -3,22 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# Runtime output directories
-extracted/
-
 # Temp files from extraction
-tmp_output_*.txt
-tmp_targets*.txt
-test
+test/*
+tmp*
 
 # Python virtual environments
-.venv/
-venv/
-
-# OS junk
-.DS_Store
-Thumbs.db
-desktop.ini
+venv
 
 # claude
 *.claude
