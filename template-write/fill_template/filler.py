@@ -1,7 +1,10 @@
 """
 # 模板填写主入口 — 格式分发。
+
 - `fill_template(template_path, output_path, content_map, placeholder_pattern=None)`:
   解析模板格式，调用对应格式的 filler，各 filler 内部自行处理缺失依赖的自动安装。
+- 仅支持 `.docx` 和纯文本（`.md`/`.txt`）。
+- `.xlsx`、`.pptx`、`.csv` 不纳入支持——前者没有模板场景，pptx 模板过于复杂，csv 是数据格式不是文档。
 """
 
 from os import makedirs
@@ -11,6 +14,10 @@ from shutil import copy2
 
 # 默认占位符模式：{{ name }}、{{name}} 等
 DEFAULT_PATTERN = r'\{\{\s*(\w+)\s*\}\}'
+
+# 支持的格式
+_DOCX_EXTS = {'.docx'}
+_TEXT_EXTS = {'.md', '.txt'}
 
 
 def fill_template(template_path: str | Path,
@@ -39,7 +46,7 @@ def fill_template(template_path: str | Path,
 
     if not template_path.exists():
         raise FileNotFoundError(f'模板不存在: {template_path}')
-    
+
     if output_path.exists():
         raise FileExistsError(f'输出文件已存在: {output_path}')
 
@@ -49,28 +56,21 @@ def fill_template(template_path: str | Path,
     # 编译占位符正则
     compiled = compile(placeholder_pattern or DEFAULT_PATTERN)
 
-    # 二进制格式：先复制模板，再原地修改
-    # 文本格式：读 -> 替换 -> 重新写入
-    if ext == '.docx':
+    if ext in _DOCX_EXTS:
+        # docx：先复制模板，再原地替换
         copy2(template_path, output_path)
         from .docx_filler import fill_docx
         fill_docx(output_path, content_map, compiled)
-    
-    elif ext == '.xlsx':
-        copy2(template_path, output_path)
-        from .xlsx_filler import fill_xlsx
-        fill_xlsx(output_path, content_map, compiled)
-    
-    elif ext == '.pptx':
-        copy2(template_path, output_path)
-        from .pptx_filler import fill_pptx
-        fill_pptx(output_path, content_map, compiled)
-    
-    elif ext in ('.md', '.txt', '.csv'):
+
+    elif ext in _TEXT_EXTS:
+        # 纯文本：读 -> 替换 -> 重新写入
         from .text_filler import fill_text
         fill_text(template_path, output_path, content_map, compiled)
-    
+
     else:
-        raise ValueError(f'不支持的格式: {ext}')
+        raise ValueError(
+            f'不支持的格式: {ext}。'
+            f'仅支持 docx 和纯文本（md/txt）。'
+        )
 
     return output_path

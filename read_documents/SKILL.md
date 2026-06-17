@@ -22,6 +22,17 @@ Invoke `Skill(skill="read_documents")` when you need to **read** a document file
 
 Supported formats: `.doc` `.docx` `.pptx` `.ppt` `.pdf` `.xlsx` `.xls`
 
+## ⚠️ Reading a docx to FILL it? Use `template-write` instead
+
+If the goal is to **write content into** a docx template (fill sections, insert text/images), do NOT:
+
+- probe paragraph indices with inline `python-docx` scripts
+- hand-write `insert_paragraph_before` loops
+
+That path reliably produces reversed content, wrong styles, and missing images. Instead use the **`template-write`** skill: `python -m fill_template --scan` shows the structure + styles, then `--section-data-file` fills it correctly with image embedding and auto-verification.
+
+`read_documents` is for **reading** (understanding what's there). `template-write` is for **writing** (putting content in). Don't blur the two.
+
 ---
 
 All files live under `~/.claude/skills/read_documents/`. Invoke via:

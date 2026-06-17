@@ -2,8 +2,8 @@
 name: template-write
 description: >
     Write reports or documents based on a known file template. Reads the template,
-    copies it to a new file in the same directory, then fills in content in the
-    copy. Preserves the original template untouched.
+    then fills in content using the fill_template Python package. Preserves the
+    original template untouched.
 triggers:
     - keywords: "模板,template,填写模板,按模板写,写报告,写文件,用模板,生成报告"
     - descriptionMatches:
@@ -20,127 +20,186 @@ tools:
 
 # Template Write — Template-Based Document Writing
 
-## When to invoke
+## ⛔ Read this first — the one rule that must never be broken
 
-Invoke when the user provides a **template file path** and **content instructions** (what to fill in).
+**NEVER write inline `python-docx` scripts. ALWAYS use `python -m fill_template`.**
 
-## Workflow
+Every time someone bypassed the package and hand-wrote `python-docx` scripts, it went wrong. Concretely, on a real task this caused:
 
-### Step 0 — Validate template path
+- **Reversed content** — `insert_paragraph_before()` + `reversed()` put every section in backwards; took a manual 64-paragraph cleanup to fix.
+- **Wrong styles** — hardcoded `Heading 2`/`Title` while the template actually used custom `a4`/`a3` styles → inserted content looks nothing like the rest of the document.
+- **Missing images** — inline scripts wrote `图6.1.1` as plain text instead of embedding the PNG. The whole point of the task was the images.
+- **Fragile indices** — manually probing `doc.paragraphs[288]` breaks the moment anything is inserted earlier.
+- **6× the tool calls** — 29 calls vs 5 when the package is used.
 
-Check the template exists before proceeding:
+The package already handles all of this: copying, style-aware boundary detection, image embedding, ordered insertion, and auto-verification. If you find yourself typing `from docx import Document` in a `python -c` string, **stop** — you are about to repeat those failures. Use the package.
 
-```bash
-test -f "<TEMPLATE_PATH>" && echo "exists" || echo "not found"
-```
+The ONLY exception: the package itself fails to import (`ModuleNotFoundError` that `pip install` can't fix). Even then, do not write a section-filling script — tell the user the package is broken.
 
-If it doesn't exist, report the error and ask the user for the correct path.
+---
 
-### Step 1 — Read the template
+## Core principle
 
-Read the template to understand its structure, placeholders, headings, and formatting.
+**Claude is the brain, the tool is the hands.**
 
-**Reading approach:**
+- Claude reads the template, understands the structure, decides what to fill and where.
+- The tool (`python -m fill_template`) does only mechanical operations: locate, clear, insert, verify.
+- If the tool can't find a heading, Claude adjusts the parameters — the tool never guesses.
 
-- **Binary formats** (docx, xlsx, pptx) or non-ASCII paths: use the `read_documents` skill first. If that skill isn't available, use `python -m extract_files` from `read_documents/`.
-- **Plain text** (`.md`, `.txt`, `.csv`): use the Read tool directly.
+## Supported formats
 
-**Common placeholder patterns to look for:**
+- **`.docx`** — Mode A (placeholder) + Mode B (section injection)
+- **`.md` / `.txt`** — Mode A (placeholder) only
+- `.xlsx`, `.pptx`, `.csv` — **not supported**
 
-- `{{placeholder}}` / `{{ placeholder }}` — double-brace (Jinja/Handlebars style)
-- `[placeholder]` — single-bracket
-- `<placeholder>` — angle-bracket
-- `%placeholder%` — percent-wrapped
-- `___` or `______` — underlined blanks
-- Highlighted / colored text — formatting-based markers
-- Comment text or yellow-highlighted runs in docx — annotation-style markers
-- Table cells with a single default value or empty — form-style fill-in cells
+## Workflow (the only path)
 
-> No placeholder found? The user likely wants to write content into each section directly — use the template's structure (headings, table rows, bullet lists) as the skeleton.
+### Step 1 — Scan the template
 
-### Step 2 — Copy the template
-
-Copy the template to a new file in the **same directory**:
-
-```bash
-cp -n "<TEMPLATE_PATH>" "<TEMPLATE_DIR>/<BASENAME>_<CONTENT_SUFFIX>.<EXT>"
-```
-
-> The original template must remain **untouched**. All edits go into the copy.
->
-> Example: `~/docs/周报模板.docx` → `~/docs/周报模板_2025年3月周报.docx`
-
-If the output file already exists (`cp -n` skips without overwriting), ask the user: overwrite, or use a different suffix?
-
-### Step 3 — Fill content with the reusable package (preferred)
-
-Use the `fill_template` package (in `~/.claude/skills/template-write/fill_template/`) to fill placeholders.
-It preserves formatting better than ad-hoc scripts, and handles all binary formats consistently.
+**Always start with `--scan`.** This shows the heading structure and custom styles — everything you need to fill correctly. Do NOT probe paragraph indices with inline scripts.
 
 ```bash
 cd ~/.claude/skills/template-write && python -m fill_template \
-  --template "<OUTPUT_PATH>" \
-  --output "<OUTPUT_PATH>" \
-  --set name=张三 \
-  --set date="2025年3月"
+  --template "<TEMPLATE_PATH>" --scan
 ```
 
-Or use a JSON data file for more placeholders:
+From the scan output, determine:
+
+- **Custom heading style** (e.g. `a4`, `标题 1`) → pass with `--heading-style`
+- **Heading names** → use exact text for section matching
+- **Duplicate heading names** → use `"Parent / Child"` scoped syntax
+- **Which sections are empty** `[EMPTY]` → these need filling
+
+### Step 2 — Read the template for content requirements (if needed)
+
+The scan shows structure but not what each section should contain. To understand requirements:
+
+- **docx**: use the `read_documents` skill with `--section "<KEYWORD>"` to read only the relevant part (saves tokens). Do NOT read the full document unless necessary.
+- **Plain text** (`.md`, `.txt`): use the Read tool directly.
+
+> If the scan already shows enough (empty sections with obvious names), skip this step.
+
+### Step 3 — Fill
+
+Both modes use: `--template <ORIGINAL> --output <NEW_FILE>`. The tool **copies automatically** — do NOT manually copy.
+
+#### Mode A: Placeholder filling
+
+When the template has `{{name}}` style placeholders:
 
 ```bash
-python -m fill_template \
-  --template template.docx \
-  --output filled.docx \
+cd ~/.claude/skills/template-write && python -m fill_template \
+  --template "<TEMPLATE_PATH>" \
+  --output "<OUTPUT_PATH>" \
+  --set name=张三 --set date="2025年3月"
+```
+
+Or with a JSON file:
+
+```bash
+cd ~/.claude/skills/template-write && python -m fill_template \
+  --template "<TEMPLATE_PATH>" \
+  --output "<OUTPUT_PATH>" \
   --data-file content.json
 ```
 
-**Supported by the package:**
+**Placeholder patterns**: `{{placeholder}}`, `[placeholder]`, `<placeholder>`, `%placeholder%`, `___`. Custom via `--pattern`.
 
-| Format | Tool | Notes |
-| ------ | ---- | ----- |
-| `.docx` | `fill_template/docx_filler.py` | Run-level replacement — preserves bold/italic/font |
-| `.xlsx` | `fill_template/xlsx_filler.py` | Cell-by-cell replacement |
-| `.pptx` | `fill_template/pptx_filler.py` | Slide shape + table replacement |
-| `.md` / `.txt` | `fill_template/text_filler.py` | UTF-8 BOM on Chinese Windows |
-| `.csv` | `fill_template/text_filler.py` | Same as text |
+#### Mode B: Section injection (docx only)
 
-> If the package is missing or broken, fall back to the manual Python script approach below.
+When the template has empty sections under headings needing full content (paragraphs + images).
 
-### Step 3 (fallback) — Manual Python script
+**3a.** Write content as a Markdown file — this is where Claude's intelligence goes:
 
-If the `fill_template` package cannot be used (e.g., imported but no CLI), write an inline script:
+```markdown
+## 实验八 / 实验过程及分析
 
-```bash
-python -c "
-from docx import Document
-doc = Document(r'<OUTPUT_PATH>')
-for p in doc.paragraphs:
-    if '{{name}}' in p.text:
-        # Replace at run level to preserve formatting
-        for run in p.runs:
-            run.text = run.text.replace('{{name}}', 'Replacement Content')
-doc.save(r'<OUTPUT_PATH>')
-"
+1. 首先打开**记事本**，输入以下内容：
+
+   ![](C:/path/to/screenshot1.png)
+
+2. 然后配置安全策略。
+
+## 实验八 / 实验结果总结
+
+本次实验成功验证了基本原理。
 ```
 
-> For multi-run placeholders that span across runs, merge all runs into the first run first.
-> If the required Python package is missing, install it: `pip install python-docx`
+**3b.** Dry-run first (verifies all headings can be located, no file changes):
 
-### Step 4 — Verify
+```bash
+cd ~/.claude/skills/template-write && python -m fill_template \
+  --template "<TEMPLATE_PATH>" \
+  --output "<OUTPUT_PATH>" \
+  --section-data-file "<TEMPLATE_DIR>/temp/sections.md" \
+  --heading-style a4 \
+  --dry-run
+```
 
-Read back the output file (or a summary) to confirm the content was written correctly. For binary formats, use `read_documents` skill if available; otherwise use Python extraction.
+**3c.** Fill for real (add `--force` if the dry-run already created the output):
 
-## Multiple templates in the same directory
+```bash
+cd ~/.claude/skills/template-write && python -m fill_template \
+  --template "<TEMPLATE_PATH>" \
+  --output "<OUTPUT_PATH>" \
+  --section-data-file "<TEMPLATE_DIR>/temp/sections.md" \
+  --heading-style a4 \
+  --force
+```
 
-If the user says "fill in a template" but doesn't specify which one, and there are multiple template files:
+> **`--heading-style`**: pass this whenever the scan shows custom heading styles (non-`Heading N`). This tells the tool which style name defines section boundaries.
 
-1. **List candidates** — find files with common template extensions (`.docx`, `.xlsx`, `.pptx`, `.md`, `.txt`, `.csv`)
-2. **Ask the user** which one to use (or infer from name if one clearly matches the description)
-3. **Proceed** with the selected template
+#### Combining modes (A then B)
 
-## Important rules
+If the template has both placeholders and empty sections:
 
-1. **Never modify the original template.** Always work on a copy.
-2. **Default output: same directory as the template.** The output filename appends a descriptive content suffix to the template's basename.
-3. **Only modify the content being filled.** Elements you don't touch (headers, footers, images, TOC, etc.) are preserved automatically by the library — no extra protection needed.
-4. **Match the template structure.** Identify placeholders, blanks, or marked sections and fill them according to the user's instructions.
+1. Run Mode A first → filled copy
+2. Run Mode B on the **filled copy** as `--template` → final document
+
+### Step 4 — Verify and clean up
+
+1. **Auto-verify is sufficient.** The tool prints `[OK]` for each filled section with paragraph/image counts. Trust it — it re-opens the file and checks the actual content.
+2. **Do NOT re-read with `read_documents`.** It wastes ~2500 tokens and provides no extra information. Only do so if auto-verify output is clearly suspicious (missing content that should be there).
+3. Clean up: `rm -rf "<TEMPLATE_DIR>/temp/"`
+
+## Markdown syntax reference (Mode B)
+
+| Syntax | Effect |
+| ------ | ------ |
+| `# ~ ###### 标题` | Section delimiter (matches docx heading text) |
+| `## 父标题 / 子标题` | Scoped: find parent, then child within it |
+| `![](path)` | Image (absolute path) |
+| `![](path){width=5.0}` | Image with custom width in inches (default 5.5) |
+| `**bold**` | Bold run |
+| `*italic*` | Italic run |
+| `1.` or `-` prefix | List item (each rendered as separate paragraph) |
+| Blank line | Paragraph separator |
+| Consecutive non-blank lines | Merged into one paragraph |
+
+## Key rules
+
+1. **Never write inline `python-docx` scripts.** Use `python -m fill_template`. (See the top of this file for why.)
+2. **Never modify the original template.** The tool copies automatically.
+3. **Always `--scan` first.** Don't guess heading styles or probe paragraph indices manually.
+4. **Pass `--heading-style`** when the scan shows custom styles — this is how the tool knows what defines a section boundary.
+5. **Use scoped syntax** (`Parent / Child`) when heading names are duplicated across sections.
+6. **The tool does not infer.** If it can't find a heading, check the scan output and adjust your parameters.
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+| ------- | ----- | --- |
+| "0 sections filled" | Heading text doesn't match | Check scan output, use exact text |
+| Section fills into wrong location | Duplicate heading names | Use `Parent / Child` scoped syntax |
+| Content overflows into next section | Boundary not detected | Add `--heading-style` for custom styles |
+| Style not recognized | Custom style not passed | Use `--heading-style <style>` from scan output |
+| Tool crashes on fill | Missing dependency | `pip install python-docx` |
+| "文件已存在" error | Dry-run left an output file | Add `--force` |
+
+## If the package is broken
+
+If `python -m fill_template` fails with an import error that `pip install python-docx` cannot fix:
+
+1. **Do NOT** write an inline section-filling script — it will reverse content, mismatch styles, and drop images (see top of file).
+2. Tell the user the `fill_template` package is broken and needs repair.
+3. Only for trivial single-placeholder replacement (Mode A, one `{{name}}`), and only with the user's explicit agreement, may you run a minimal inline script on an **already-copied** output file. Never use this for section filling or images.

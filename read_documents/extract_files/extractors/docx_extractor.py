@@ -13,6 +13,14 @@ from ..deps import ensure_import
 from ..section import detect_chinese_heading
 from ..util import safe_open_path, mktemp_in_dir
 
+# 已知正文样式名（小写）—— 排除这些后，高频出现的自定义样式视为标题
+_BODY_STYLE_NAMES = frozenset({
+    'normal', '正文', '默认段落字体', 'body text', 'bodytext',
+    'caption', 'footnote', 'endnote', 'header', 'footer',
+    'toc 1', 'toc 2', 'toc 3', 'tocheading',
+    'table grid', 'list paragraph',
+})
+
 
 def extract_doc(filepath: Path, assets_dir: Path | None = None) -> list[str]:
     """
@@ -50,6 +58,8 @@ def extract_docx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
     Returns:
         lines (list[str]): 提取出的文本行，失败时返回错误信息。
     """
+    from docx.oxml.ns import qn
+
     lines: list[str] = []
     assets_result: dict[str, list[str]] = {}
 
@@ -58,19 +68,32 @@ def extract_docx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
 
     try:
         Document = ensure_import('python-docx', 'docx', attr='Document')  # type: ignore[assignment]
-    
+
     except ImportError:
         return ['[Error: python-docx 未安装。执行: pip install python-docx]']
 
     with safe_open_path(filepath) as safe_path:
         try:
             doc = Document(str(safe_path))  # type: ignore[operator]
-        
+
         except Exception as e:
             return [f'[Error: 用 python-docx 打开 .docx 失败: {e}]']
 
+        # 预扫描：统计各样式出现次数，用于识别自定义标题样式
+        style_count: dict[str, int] = {}
+        for p_elem in doc.element.body.iter(qn("w:p")):
+            pPr = p_elem.find(qn("w:pPr"))
+            if pPr is None:
+                continue
+            pStyle = pPr.find(qn("w:pStyle"))
+            if pStyle is None:
+                continue
+            val = pStyle.get(qn("w:val"), "")
+            if val:
+                style_count[val.lower()] = style_count.get(val.lower(), 0) + 1
+
         # 始终使用有序提取——保留段落/表格的真实交错顺序
-        _extract_docx_body_ordered(doc, lines)
+        _extract_docx_body_ordered(doc, lines, style_count)
 
     if assets_result:
         assets.append_assets_summary(lines, assets_result)
@@ -108,7 +131,7 @@ def _extract_doc_com(filepath: Path, assets_dir: Path | None = None) -> list[str
         return [f'[Error: 通过 COM 提取 DOC 失败: {e}]']
 
 
-def _extract_docx_body_ordered(doc, lines: list[str]) -> None:
+def _extract_docx_body_ordered(doc, lines: list[str], style_count: dict[str, int]) -> None:
     """
     按文档顺序提取 docx 内容，添加 Markdown 标题标记。
 
@@ -127,9 +150,14 @@ def _extract_docx_body_ordered(doc, lines: list[str]) -> None:
             text = _text(child).strip()
             if not text:
                 continue
-            heading_level = _get_heading_style_level(child)
-            if heading_level is None:
-                heading_level = detect_chinese_heading(text)
+            # 用多种方式检测标题级别，优先级：
+            # 1. detect_chinese_heading 最准确（"实验七"=1、"实验目的"=2）
+            # 2. 自定义样式推断（a4 → 2，与真实级别对比后可能高估或低估）
+            # 取最小值（更高级别）作为最终级别
+            heading_level = detect_chinese_heading(text)
+            style_level = _get_heading_style_level(child, style_count)
+            if style_level is not None and (heading_level is None or style_level < heading_level):
+                heading_level = style_level
             if heading_level is not None:
                 lines.append(f'{"#" * min(heading_level, 6)} {text}')
             else:
@@ -147,29 +175,42 @@ def _extract_docx_body_ordered(doc, lines: list[str]) -> None:
             lines.append('')
 
 
-def _get_heading_style_level(child) -> int | None:
+def _get_heading_style_level(child, style_count: dict[str, int] | None = None) -> int | None:
     """
-    检查段落是否应用了 Word 标题样式。
+    检查段落是否应用了标题样式。
 
-    匹配 "Heading 1"、"Heading 2" 等样式名，返回对应级别（1-9）。
-    
-    没有标题样式则返回 None。
+    按以下顺序检测：
+    1. Word 内置标题样式（"Heading 1"-"Heading 9"）
+    2. 自定义标题样式——通过文档中所有段落的样式出现频率推断：
+       如果段落的样式不是正文样式，且在整个文档中 ≥2 次出现，则视为标题。
+
+    没有匹配时返回 None。
     """
     from docx.oxml.ns import qn
     pPr = child.find(qn('w:pPr'))
     if pPr is None:
         return None
-    
+
     pStyle = pPr.find(qn('w:pStyle'))
     if pStyle is None:
         return None
-    
+
     style_val = pStyle.get(qn('w:val'), '')
-    if not style_val.lower().startswith('heading'):
+    if not style_val:
         return None
-    
-    try:
-        return int(style_val.split()[-1])
-    
-    except ValueError:
-        return 1  # 解析失败默认返回级别 1
+
+    # 策略 1：Word 内置标题样式
+    if style_val.lower().startswith('heading'):
+        try:
+            return int(style_val.split()[-1])
+        except ValueError:
+            return 1
+
+    # 策略 2：通过样式名称在段落中出现的次数推断自定义标题样式
+    # 高频出现的非正文样式很可能是自定义标题样式（如 a4, a3 等）
+    if style_count and style_val.lower() not in _BODY_STYLE_NAMES:
+        hits = style_count.get(style_val.lower(), 0)
+        if hits >= 2:
+            return 2  # 自定义标题默认视为 2 级
+
+    return None

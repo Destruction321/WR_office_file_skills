@@ -9,6 +9,7 @@ extracted/
 # Temp files from extraction
 tmp_output_*.txt
 tmp_targets*.txt
+test
 
 # Python virtual environments
 .venv/

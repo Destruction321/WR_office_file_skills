@@ -5,15 +5,6 @@ from sys import executable
 from typing import Any
 
 
-def _install_one(pip_name: str) -> None:
-    """安装单个 pip 包，失败时抛异常。"""
-    print(f'正在安装 {pip_name} ...')
-    check_call(
-        [executable, '-m', 'pip', 'install', pip_name],
-        timeout=180,
-    )
-
-
 def ensure_import(pip_name: str, import_name: str | None = None, attr: str | None = None) -> Any:
     """
     ## 确保某个包可导入。如果缺了，自动 pip install 之后再试。
@@ -34,7 +25,11 @@ def ensure_import(pip_name: str, import_name: str | None = None, attr: str | Non
         mod = import_module(name)
     
     except ImportError:
-        _install_one(pip_name)
+        print(f'正在安装 {pip_name} ...')
+        check_call(
+            [executable, '-m', 'pip', 'install', pip_name],
+            timeout=180,
+        )
         mod = import_module(name)
 
     if attr:
