@@ -9,7 +9,7 @@ Claude Code 技能集合 —— 增强 AI 对文档文件的读写能力。
 | 技能                                      | 描述                                                                     |
 | ----------------------------------------- | ------------------------------------------------------------------------ |
 | [read_documents](read_documents/SKILL.md) | 读取中文路径的 Office 文档和 PDF（docx, pptx, xlsx, pdf, doc, ppt, xls） |
-| [template-write](template-write/SKILL.md) | 基于模板填写内容生成新文档，原模板保持不动                               |
+| [template-write](template-write/SKILL.md) | docx 节级填充（扫描/验证）与占位符替换，原模板不动                       |
 
 ---
 
@@ -38,16 +38,21 @@ Claude Code 技能集合 —— 增强 AI 对文档文件的读写能力。
 
 ## template-write — 模板填写
 
-基于已有模板文件，读取 → 复制 → 填写，生成新文档。
+向已有模板写入内容生成新文档（原模板不动）。两种模式：
 
-**工作流程：**
+**节级填充**（主要能力，面向结构化报告）：`--scan` 输出标题结构与样式 → AI 据此决策 → `--section-data-file` 按标题定位节、以样式名定边界、清空旧内容、插入文本/图片、读回验证。工具只做机械操作，智能判断交给 AI。支持 `父标题 / 子标题` 限定语法消歧重名标题。
 
-1. 读取模板，识别占位符（`{{xxx}}`、`[xxx]`、`<xxx>`、下划线留白等）
-2. 复制一份副本到同目录（原模板不动）
-3. 用 `python-docx` / `openpyxl` / `python-pptx` 填入内容
-4. 读回验证
+**占位符替换**（简单场景）：识别 `{{name}}` 等占位符并替换。
 
-**支持格式：** `.docx`、`.xlsx`、`.pptx`、`.md`、`.txt`、`.csv`
+| 模式       | 关键参数                                                                |
+| ---------- | ----------------------------------------------------------------------- |
+| 扫描结构   | `--scan`                                                                |
+| 节级填充   | `--section-data-file`、`--heading-style`、`--section-mode`、`--dry-run` |
+| 占位符替换 | `--set` / `--data` / `--data-file`、`--pattern`                         |
+
+**支持格式：** `.docx`（节级填充 + 占位符替换）、`.md`/`.txt`（占位符替换）
+
+> `.xlsx`/`.pptx`/`.csv` 不纳入支持——无模板场景或模板过于复杂。
 
 ---
 
@@ -70,6 +75,7 @@ pip install python-docx python-pptx pdfplumber PyMuPDF openpyxl olefile xlrd
 ```txt
 ~/.claude/skills/
 ├── README.md                    # 本文件 — 项目说明
+├── CLAUDE.md                    # 项目级 AI 指引（测试规则等）
 ├── .gitignore
 ├── read_documents/              # 文档读取技能
 │    ├── SKILL.md                 # 给 AI 的调用指引
@@ -98,12 +104,12 @@ pip install python-docx python-pptx pdfplumber PyMuPDF openpyxl olefile xlrd
      ├── SKILL.md                 # 给 AI 的调用指引
      └── fill_template/           # 可复用的模板填写包
           ├── __init__.py
-          ├── __main__.py          # CLI 入口（python -m）
-          ├── cli.py               # 参数解析
-          ├── filler.py            # 主入口、格式分发
-          ├── deps.py              # 自动安装依赖
-          ├── docx_filler.py       # 保留格式的 run 级替换
-          ├── xlsx_filler.py       # 单元格级替换
-          ├── pptx_filler.py       # 幻灯片占位符替换
-          └── text_filler.py       # md/txt/csv 替换
+          ├── __main__.py            # CLI 入口（python -m）
+          ├── cli.py                 # 参数解析、模式分发
+          ├── filler.py              # 占位符替换主入口、格式分发
+          ├── deps.py                # 自动安装依赖
+          ├── docx_filler.py         # docx 占位符替换（run 级）
+          ├── docx_section_filler.py # docx 节级填充 + 扫描（核心）
+          ├── md_parser.py           # Markdown → 节内容解析
+          └── text_filler.py         # md/txt 占位符替换
 ```
