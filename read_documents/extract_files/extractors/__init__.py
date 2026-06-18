@@ -33,14 +33,11 @@ def _extract_plain_text(filepath: Path, assets_dir: Path | None = None) -> list[
     """
     for enc in ('utf-8', 'gbk', 'gb2312', 'utf-16'):
         try:
-            from ..util import safe_open_path
-            with safe_open_path(filepath) as safe_path:
-                with open(safe_path, 'r', encoding=enc) as fh:
-                    return fh.read().splitlines()
+            with open(filepath, 'r', encoding=enc) as fh:
+                return fh.read().splitlines()
         
         except (UnicodeDecodeError, LookupError):
             continue
-        
         except Exception as e:
             return [f'[Error: 读取纯文本失败: {e}]']
     
@@ -63,5 +60,4 @@ def extract_file(filepath: str, assets_dir: str | None = None) -> list[str]:
     handler = EXTRACTORS.get(fp.suffix.lower())
     if handler is None:
         return _extract_plain_text(fp, ad)
-    
     return handler(fp, ad)

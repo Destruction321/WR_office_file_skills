@@ -46,7 +46,6 @@ def fill_template(template_path: str | Path,
 
     if not template_path.exists():
         raise FileNotFoundError(f'模板不存在: {template_path}')
-
     if output_path.exists():
         raise FileExistsError(f'输出文件已存在: {output_path}')
 

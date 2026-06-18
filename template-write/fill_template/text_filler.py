@@ -54,7 +54,6 @@ def _detect_encoding(path: Path) -> str:
         try:
             lang = getdefaultlocale()[0]
             return 'gbk' if lang and 'zh' in lang else 'utf-8'
-        
         except Exception:
             return 'utf-8'
 
@@ -66,7 +65,6 @@ def _needs_bom() -> bool:
     try:
         lang = getdefaultlocale()[0]
         return bool(lang and 'zh' in lang)
-    
     except Exception:
         return False
 
@@ -76,5 +74,5 @@ def _replace_all(text: str, content_map: dict[str, str], pattern: Pattern[str]) 
     def _replacer(match: Match[str]) -> str:
         name = match.group(1)
         return content_map.get(name, match.group(0))
-    
+
     return pattern.sub(_replacer, text)

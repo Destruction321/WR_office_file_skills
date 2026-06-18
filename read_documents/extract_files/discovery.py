@@ -124,9 +124,9 @@ def read_paths_file(path: str) -> list[str]:
     with open(resolved, 'r', encoding='utf-8') as fh:
         for line in fh:
             line = line.strip()
-            
             if not line or line.startswith('#'):
                 continue
+            
             # 标准化文件内的每个路径
             paths.append(normalize_path(line))
     

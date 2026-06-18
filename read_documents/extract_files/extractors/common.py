@@ -23,7 +23,6 @@ def kill_orphan_com(process_name: str) -> None:
     """
     if platform != 'win32':
         return
-
     try:
         run(
             ['taskkill', '/F',
@@ -31,7 +30,6 @@ def kill_orphan_com(process_name: str) -> None:
              '/FI', 'STATUS eq NOT RESPONDING'],
             capture_output=True, timeout=5,
         )
-    
     except Exception:
         pass  # 尽力而为，不因清理失败而崩溃
 

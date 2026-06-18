@@ -10,7 +10,7 @@ from sys import platform
 from .common import kill_orphan_com, PPT_SCRIPT
 from .. import assets
 from ..deps import ensure_import
-from ..util import safe_open_path, mktemp_in_dir
+from ..util import mktemp_in_dir
 
 
 def extract_pptx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
@@ -25,42 +25,37 @@ def extract_pptx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
         lines (list[str]): 提取出的文本行，失败时返回错误信息。
     """
     assets_result: dict[str, list[str]] = {}
-
     if assets_dir:
-        assets_result = assets.extract_ooxml_assets(
-            filepath, assets_dir / filepath.stem, '.pptx')
+        assets_result = assets.extract_ooxml_assets(filepath, assets_dir / filepath.stem, '.pptx')
 
     try:
         Presentation = ensure_import('python-pptx', 'pptx', attr='Presentation')  # type: ignore[assignment]
-    
     except ImportError:
         return ['[Error: python-pptx 未安装。执行: pip install python-pptx]']
 
-    with safe_open_path(filepath) as safe_path:
-        try:
-            prs = Presentation(str(safe_path))  # type: ignore[operator]
-        
-        except Exception:
-            return ['[Error: 用 python-pptx 打开 .pptx 失败]']
+    try:
+        prs = Presentation(str(filepath))  # type: ignore[operator]
+    except Exception:
+        return ['[Error: 用 python-pptx 打开 .pptx 失败]']
 
-        lines: list[str] = []
-        for i, slide in enumerate(prs.slides, 1):
-            lines.append(f'--- Slide {i} ---')
-            for shape in slide.shapes:
-                if shape.has_text_frame:
-                    for p in shape.text_frame.paragraphs:  # type: ignore[attr-defined]
-                        t = p.text.strip()
-                        if not t:
-                            continue
-                        lines.append(t)
+    lines: list[str] = []
+    for i, slide in enumerate(prs.slides, 1):
+        lines.append(f'--- Slide {i} ---')
+        for shape in slide.shapes:
+            if shape.has_text_frame:
+                for p in shape.text_frame.paragraphs:  # type: ignore[attr-defined]
+                    t = p.text.strip()
+                    if not t:
+                        continue
+                    lines.append(t)
 
-                if shape.has_table:
-                    for row in shape.table.rows:  # type: ignore[attr-defined]
-                        cells = [
-                            cell.text.strip().replace('\n', ' ').replace('\r', '')
-                            for cell in row.cells
-                        ]
-                        lines.append(' | '.join(cells))
+            if shape.has_table:
+                for row in shape.table.rows:  # type: ignore[attr-defined]
+                    cells = [
+                        cell.text.strip().replace('\n', ' ').replace('\r', '')
+                        for cell in row.cells
+                    ]
+                    lines.append(' | '.join(cells))
 
     if assets_result:
         assets.append_assets_summary(lines, assets_result)
@@ -95,7 +90,6 @@ def _extract_ppt_com(filepath: Path, assets_dir: Path | None = None) -> list[str
     """通过 Windows COM 提取旧 .ppt 文件。"""
     if platform != 'win32':
         return ['[Error: 旧格式 .ppt 提取需要 Windows + Microsoft Office]']
-
     if not Path(PPT_SCRIPT).exists():
         return ['[Error: 找不到 PowerPoint 提取脚本]']
 

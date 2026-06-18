@@ -99,7 +99,6 @@ def _filter_by_heading_markers(lines: list[str], section_low: str) -> list[str]:
                 section_level = level
                 result.append(line)
                 continue
-            
             elif in_section and level <= section_level:
                 break
 
@@ -108,7 +107,6 @@ def _filter_by_heading_markers(lines: list[str], section_low: str) -> list[str]:
 
     if not result:
         result = _filter_by_keyword_context(lines, section_low)
-
     return result
 
 
@@ -126,6 +124,7 @@ def _filter_by_unit_markers(lines: list[str],
         if line.startswith(marker_prefix) and current:
             units.append(current)
             current = []
+        
         current.append(line)
 
     if current:
@@ -146,10 +145,8 @@ def _filter_by_unit_markers(lines: list[str],
                 with_context.add(neighbour)
 
     result = [line for idx in sorted(with_context) for line in units[idx]]
-
     if not result:
         result = _filter_by_keyword_context(lines, section_low)
-
     return result
 
 

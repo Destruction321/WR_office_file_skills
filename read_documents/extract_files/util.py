@@ -1,9 +1,6 @@
-"""共享工具 — 安全路径处理和二进制识别。"""
-from contextlib import contextmanager
+"""共享工具 — 临时目录与魔数识别。"""
 from pathlib import Path
-from shutil import copy2
 from tempfile import mkdtemp
-from typing import Generator
 
 
 def mktemp_in_dir(filepath: Path, prefix: str = 'tmp_') -> Path:
@@ -20,34 +17,6 @@ def mktemp_in_dir(filepath: Path, prefix: str = 'tmp_') -> Path:
     temp_base = filepath.parent / 'temp'
     temp_base.mkdir(parents=True, exist_ok=True)
     return Path(mkdtemp(prefix=prefix, dir=str(temp_base)))
-
-
-@contextmanager
-def safe_open_path(filepath: Path) -> Generator[Path, None, None]:
-    """
-    ## 当原始路径包含非 ASCII 字符时，复制到纯 ASCII 临时路径再打开。
-    - `python-docx` / `python-pptx` 共用的 OPC 层在处理非 ASCII 路径时会报错，
-    该上下文管理器透明地将文件复制到纯 ASCII 名称的临时目录，返回该路径，使用后自动清理。
-
-    Args:
-        filepath (Path): 原始文件路径，可能包含非 ASCII 字符。
-    """
-    if not _has_nonascii(str(filepath)):
-        yield filepath
-        return
-    tmp_dir = mktemp_in_dir(filepath, prefix='tmp_doc_')
-    tmp_path = tmp_dir / f'doc{filepath.suffix}'
-    copy2(filepath, tmp_path)
-    yield tmp_path
-
-
-def _has_nonascii(s: str) -> bool:
-    """检查字符串是否包含非 ASCII 字符。"""
-    try:
-        s.encode('ascii')
-        return False
-    except UnicodeEncodeError:
-        return True
 
 
 # ===================================================================

@@ -59,11 +59,12 @@ def parse_sections_md(md_text: str) -> dict[str, list[dict[str, Any]]]:
             pending_lines = []
             if current_heading is not None:
                 sections[current_heading] = current_items
+            
             current_heading = heading_match.group(2).strip()
             current_items = []
             continue
 
-        # 空行 → 结束当前段落
+        # 空行 -> 结束当前段落
         if not stripped:
             _flush_pending(pending_lines, current_items)
             pending_lines = []
@@ -77,6 +78,7 @@ def parse_sections_md(md_text: str) -> dict[str, list[dict[str, Any]]]:
             item: dict[str, Any] = {"type": "image", "path": img_match.group(1)}
             if img_match.group(2):
                 item["width_inches"] = float(img_match.group(2))
+            
             current_items.append(item)
             continue
 
@@ -126,14 +128,10 @@ def _parse_inline(text: str) -> list[dict[str, Any]]:
     for part in parts:
         if not part:
             continue
-        
         if part.startswith('**') and part.endswith('**'):
             runs.append({"text": part[2:-2], "bold": True})
-        
         elif part.startswith('*') and part.endswith('*'):
             runs.append({"text": part[1:-1], "italic": True})
-        
         else:
             runs.append({"text": part})
-    
     return runs

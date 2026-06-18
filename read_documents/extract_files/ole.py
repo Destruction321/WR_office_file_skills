@@ -25,7 +25,6 @@ def decompose_ole_object(filepath: Path, out_dir: Path) -> list[tuple[str | None
 
     try:
         OleFileIO = ensure_import('olefile', attr='OleFileIO')
-    
     except ImportError:
         return extracted
     
@@ -40,7 +39,6 @@ def decompose_ole_object(filepath: Path, out_dir: Path) -> list[tuple[str | None
                 break
 
         ole.close()
-
         if native_data is None:
             return extracted
 
@@ -49,7 +47,6 @@ def decompose_ole_object(filepath: Path, out_dir: Path) -> list[tuple[str | None
             return extracted
 
         strings, data_start = offset_info
-
         raw_data = native_data[data_start:]
         ext, desc = identify_data(raw_data)
         filename = strings[0] if strings else 'embedded_object'
@@ -94,7 +91,6 @@ def _find_ole_embedded_offset(native_data: bytes) -> tuple[list[str], int] | Non
         if s:
             try:
                 strings.append(s.decode('ascii', errors='replace'))
-            
             except Exception:
                 strings.append(repr(s))
         
@@ -112,7 +108,6 @@ def _find_ole_embedded_offset(native_data: bytes) -> tuple[list[str], int] | Non
 
     if data_start is None:
         data_start = pos + 2
-
     if data_start >= len(native_data):
         return None
 
@@ -144,10 +139,8 @@ def _extract_nested_zip(out_path: Path,
                     try:
                         member_path.write_bytes(z.read(name, pwd=b''))
                         extracted.append((str(member_path), f'加密条目(内容已加密): {safe_name}'))
-                    
                     except RuntimeError:
                         extracted.append((None, f'  └─ {name} (加密条目，原ZIP已保留)'))
-                    
                     continue
 
                 with z.open(name) as src:
@@ -159,7 +152,6 @@ def _extract_nested_zip(out_path: Path,
     except RuntimeError as e:
         if 'password' in str(e).lower() or 'encrypted' in str(e).lower():
             extracted.append((None, f'  └─ ZIP包含加密条目，原文件已保留: {out_path}'))
-        
         else:
             extracted.append((None, f'  └─ ZIP提取错误: {e}'))
     

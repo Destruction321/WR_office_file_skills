@@ -30,12 +30,10 @@ def ensure_import(pip_name: str, import_name: str | None = None, attr: str | Non
     name = import_name or pip_name
     try:
         mod = import_module(name)
-    
     except ImportError:
         _install_one(pip_name)
         mod = import_module(name)
 
     if attr:
         return getattr(mod, attr)
-    
     return mod

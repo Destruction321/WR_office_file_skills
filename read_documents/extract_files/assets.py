@@ -5,7 +5,6 @@ from zipfile import ZipFile, BadZipFile
 
 from .deps import ensure_import
 from .ole import decompose_ole_object
-from .util import safe_open_path
 
 
 # ===================================================================
@@ -70,33 +69,28 @@ def extract_ooxml_assets(filepath: Path, assets_dir: Path, ext_key: str) -> dict
                         continue
                     matched = True
                     break
-
                 if not matched:
                     continue
 
                 basename = Path(name).name
                 ext = Path(basename).suffix.lower()
                 cat, out_subdir, label = _classify_asset(ext, name, assets_dir, basename)
-
                 out_subdir.mkdir(parents=True, exist_ok=True)
                 out_path = out_subdir / basename
                 counter = 1
+                
                 while out_path.exists():
                     out_path = out_subdir / f'{Path(basename).stem}_{counter}{ext}'
                     counter += 1
-
                 out_path.write_bytes(z.read(name))
                 result[cat].append(label)
 
                 _try_decompose_ole(out_path, assets_dir, cat, result)
-
     except BadZipFile:
         if ext_key not in ('.xls', '.doc'):
             print(f'  [警告] 非有效 ZIP/OOXML 文件: {filepath.name}', file=stderr)
-    
     except Exception as e:
         print(f'  [警告] 资源提取失败 {filepath.name}: {e}', file=stderr)
-
     return result
 
 
@@ -118,21 +112,17 @@ def extract_pdf_assets(filepath: Path, assets_dir: Path) -> dict[str, list[str]]
 
     try:
         fitz_open = ensure_import('PyMuPDF', 'fitz', attr='open')  # type: ignore[assignment]
-    
     except ImportError:
         fitz_open = None
 
     if fitz_open:
         try:
-            with safe_open_path(filepath) as safe_path:
-                doc = fitz_open(safe_path)  # type: ignore[operator]
-                for page_idx in range(len(doc)):
-                    _extract_page_images(doc, page_idx, img_dir, result)
-                doc.close()
-        
+            doc = fitz_open(filepath)  # type: ignore[operator]
+            for page_idx in range(len(doc)):
+                _extract_page_images(doc, page_idx, img_dir, result)
+            doc.close()
         except Exception as e:
             print(f'  [警告] PDF 图片提取失败: {e}', file=stderr)
-
     return result
 
 
@@ -171,13 +161,10 @@ def _classify_asset(ext: str, name: str, assets_dir: Path, basename: str) -> tup
     """根据扩展名和路径将资源分类，返回（类别 key，输出目录路径，显示标签）。"""
     if ext in IMAGE_EXTS:
         return 'images', assets_dir / 'images', f'图片: {basename}'
-    
     elif ext in MEDIA_EXTS:
         return 'media', assets_dir / 'media', f'媒体: {basename}'
-    
     elif ext in EMBED_EXTS or 'embedding' in name.lower():
         return 'embeddings', assets_dir / 'embeddings', f'嵌入对象: {basename}'
-    
     else:
         return 'other', assets_dir / 'other', f'其他: {basename}'
 
@@ -197,7 +184,6 @@ def _try_decompose_ole(out_path: Path, assets_dir: Path, cat: str, result: dict[
         for ole_path, ole_desc in ole_assets:
             if ole_path is None:
                 result['embeddings'].append(ole_desc)
-            
             else:
                 result['embeddings'].append(f'  └─ OLE分解: {Path(ole_path).name} ({ole_desc})')
     
@@ -214,6 +200,5 @@ def _extract_page_images(doc, page_idx: int, img_dir: Path, result: dict[str, li
             out_path = img_dir / f'page{page_idx+1}_img{j+1}.{img_ext}'
             out_path.write_bytes(base_image['image'])
             result['images'].append(f'图片: page{page_idx+1}_img{j+1}.{img_ext}')
-        
         except Exception:
             pass

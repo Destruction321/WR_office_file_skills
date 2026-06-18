@@ -23,7 +23,6 @@ def ensure_import(pip_name: str, import_name: str | None = None, attr: str | Non
     name = import_name or pip_name
     try:
         mod = import_module(name)
-    
     except ImportError:
         print(f'正在安装 {pip_name} ...')
         check_call(
@@ -34,5 +33,4 @@ def ensure_import(pip_name: str, import_name: str | None = None, attr: str | Non
 
     if attr:
         return getattr(mod, attr)
-    
     return mod

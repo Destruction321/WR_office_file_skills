@@ -11,7 +11,8 @@ from .common import kill_orphan_com, DOC_SCRIPT
 from .. import assets
 from ..deps import ensure_import
 from ..section import detect_chinese_heading
-from ..util import safe_open_path, mktemp_in_dir
+from ..util import mktemp_in_dir
+
 
 # 已知正文样式名（小写）—— 排除这些后，高频出现的自定义样式视为标题
 _BODY_STYLE_NAMES = frozenset({
@@ -42,7 +43,6 @@ def extract_doc(filepath: Path, assets_dir: Path | None = None) -> list[str]:
         if all(not line or line.startswith('[') for line in result):
             raise ValueError('python-docx 仅返回了错误信息')
         return result
-    
     except Exception:
         return _extract_doc_com(filepath, assets_dir)
 
@@ -62,42 +62,36 @@ def extract_docx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
 
     lines: list[str] = []
     assets_result: dict[str, list[str]] = {}
-
     if assets_dir:
         assets_result = assets.extract_ooxml_assets(filepath, assets_dir / filepath.stem, '.docx')
-
+        
     try:
         Document = ensure_import('python-docx', 'docx', attr='Document')  # type: ignore[assignment]
-
     except ImportError:
         return ['[Error: python-docx 未安装。执行: pip install python-docx]']
 
-    with safe_open_path(filepath) as safe_path:
-        try:
-            doc = Document(str(safe_path))  # type: ignore[operator]
+    try:
+        doc = Document(str(filepath))  # type: ignore[operator]
+    except Exception as e:
+        return [f'[Error: 用 python-docx 打开 .docx 失败: {e}]']
 
-        except Exception as e:
-            return [f'[Error: 用 python-docx 打开 .docx 失败: {e}]']
+    # 预扫描：统计各样式出现次数，用于识别自定义标题样式
+    style_count: dict[str, int] = {}
+    for p_elem in doc.element.body.iter(qn("w:p")):
+        pPr = p_elem.find(qn("w:pPr"))
+        if pPr is None:
+            continue
+        pStyle = pPr.find(qn("w:pStyle"))
+        if pStyle is None:
+            continue
+        val = pStyle.get(qn("w:val"), "")
+        if val:
+            style_count[val.lower()] = style_count.get(val.lower(), 0) + 1
 
-        # 预扫描：统计各样式出现次数，用于识别自定义标题样式
-        style_count: dict[str, int] = {}
-        for p_elem in doc.element.body.iter(qn("w:p")):
-            pPr = p_elem.find(qn("w:pPr"))
-            if pPr is None:
-                continue
-            pStyle = pPr.find(qn("w:pStyle"))
-            if pStyle is None:
-                continue
-            val = pStyle.get(qn("w:val"), "")
-            if val:
-                style_count[val.lower()] = style_count.get(val.lower(), 0) + 1
-
-        # 始终使用有序提取——保留段落/表格的真实交错顺序
-        _extract_docx_body_ordered(doc, lines, style_count)
-
+    # 始终使用有序提取——保留段落/表格的真实交错顺序
+    _extract_docx_body_ordered(doc, lines, style_count)
     if assets_result:
         assets.append_assets_summary(lines, assets_result)
-
     return lines
 
 

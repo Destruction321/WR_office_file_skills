@@ -441,7 +441,6 @@ def _is_custom_heading_style(style: str,
     """
     if style.lower() in _BODY_STYLE_NAMES:
         return False
-    
     if style_counts.get(style, 0) < 2:
         return False
     
@@ -503,6 +502,7 @@ def _build_text_para(doc, item: dict[str, Any]):
                 run.bold = True
             if run_spec.get("italic"):
                 run.italic = True
+    
     else:
         run = p.add_run()
         run.text = item.get("text", "")

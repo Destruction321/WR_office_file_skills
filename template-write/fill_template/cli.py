@@ -48,8 +48,8 @@ def main() -> None:
     parser.add_argument('--force', '-f', action='store_true', help='覆盖已存在的输出文件')
 
     args = parser.parse_args()
-
     template = Path(args.template)
+    
     if not template.exists():
         print(f'错误: 模板不存在: {template}', file=stderr)
         exit(1)
@@ -116,11 +116,11 @@ def main() -> None:
     if output.exists() and not args.force:
         print(f'错误: {output} 已存在。使用 --force 覆盖。', file=stderr)
         exit(1)
+
     if output.exists():
         output.unlink()
 
     content_map: dict[str, str] = {}
-
     if args.data:
         content_map.update(loads(args.data))
     if args.data_file:

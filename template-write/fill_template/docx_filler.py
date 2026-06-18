@@ -67,7 +67,6 @@ def _fill_paragraph(para: Any, content_map: dict[str, str], pattern: Pattern[str
     3. 否则在每个 run 内单独替换。
     """
     full_text = ''.join(run.text for run in para.runs)
-
     if not pattern.search(full_text):
         return
 
@@ -78,8 +77,8 @@ def _fill_paragraph(para: Any, content_map: dict[str, str], pattern: Pattern[str
 
         first_run = runs[0]
         merged_text = _replace_all(full_text, content_map, pattern)
-
         first_run.text = merged_text
+        
         for run in runs[1:]:
             run.text = ''
     else:
@@ -119,5 +118,5 @@ def _replace_all(text: str, content_map: dict[str, str], pattern: Pattern[str]) 
     def _replacer(match: Match[str]) -> str:
         name = match.group(1)
         return content_map.get(name, match.group(0))
-    
+
     return pattern.sub(_replacer, text)
