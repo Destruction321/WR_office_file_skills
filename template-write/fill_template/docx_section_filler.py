@@ -2,7 +2,7 @@
 # docx 节级内容填充器
 
 **核心原则**：文本匹配定位 + 样式名定义界。不推断标题级别。
-**工具只做机械操作**：定位标题 → 确定边界 → 清除旧内容 → 插入新内容 → 验证。
+**工具只做机械操作**：定位标题 -> 确定边界 -> 清除旧内容 -> 插入新内容 -> 验证。
 智能判断由 Claude 通过 --scan 输出完成。
 
 ## 标题定位：
@@ -10,8 +10,8 @@
 2. 限定定位："实验七 / 实验过程及分析" — 先找父标题，再在范围内找子标题
 
 **边界检测只有两种策略**：
-1. 相同样式名的段落 → 同级标题 → 节边界
-2. Word 内置 Heading 样式的段落 → 节边界
+1. 相同样式名的段落 -> 同级标题 -> 节边界
+2. Word 内置 Heading 样式的段落 -> 节边界
 """
 
 from pathlib import Path
@@ -184,7 +184,7 @@ def fill_docx_sections(doc_path: Path,
             pc = sum(1 for it in items if it.get("type") != "image")
             ic = sum(1 for it in items if it.get("type") == "image")
             print(
-                f"  [DRY] '{heading_text}' → idx={heading_idx}, end={end_desc}, "
+                f"  [DRY] '{heading_text}' -> idx={heading_idx}, end={end_desc}, "
                 f"{pc} paragraphs + {ic} images"
             )
             filled_count += 1
@@ -332,8 +332,8 @@ def _find_heading_index(children: list, text: str, *, start: int = 0, end: int |
 def _find_heading_index_scoped(children: list, heading_text: str) -> int | None:
     """按标题文本查找段落索引，支持限定定位语法。
 
-    - 全局："标题文本" → 全文找第一个匹配段落。
-    - 限定："父标题 / 子标题" → 先找父标题，再在其后找子标题
+    - 全局："标题文本" -> 全文找第一个匹配段落。
+    - 限定："父标题 / 子标题" -> 先找父标题，再在其后找子标题
       （不限制 parent_end，因父子可能同样式，样式边界无法区分）。
 
     Returns:
@@ -357,9 +357,9 @@ def _find_style_boundary(children: list,
     """找到 heading_idx 之后第一个同级标题段落，返回其索引。
 
     边界判定：
-    - 与目标标题相同样式名的段落 → 边界
-    - 用户指定 --heading-style 的段落 → 边界
-    - Word 内置 Heading 样式的段落 → 边界（当原标题不是内置样式时）
+    - 与目标标题相同样式名的段落 -> 边界
+    - 用户指定 --heading-style 的段落 -> 边界
+    - Word 内置 Heading 样式的段落 -> 边界（当原标题不是内置样式时）
     - hard_end 限制搜索范围（限定定位时不超过父节边界）
     """
     from docx.oxml.ns import qn
@@ -375,15 +375,15 @@ def _find_style_boundary(children: list,
 
         style_lower = _get_style_name(child).lower()
 
-        # 相同样式名 → 同级标题 → 边界
+        # 相同样式名 -> 同级标题 -> 边界
         if hs_lower_local and style_lower == hs_lower_local:
             return i
         
-        # 用户指定的 heading_style → 边界
+        # 用户指定的 heading_style -> 边界
         if hs_lower and style_lower == hs_lower:
             return i
         
-        # Word 内置 Heading → 边界（当原样式不是内置样式时）
+        # Word 内置 Heading -> 边界（当原样式不是内置样式时）
         if not is_builtin and style_lower.startswith("heading"):
             return i
 
@@ -418,13 +418,13 @@ def _find_empty_sections(all_paras: list[tuple[str, str]],
         if not text:
             continue
         
-        # 段落文本等于下一个待匹配标题 → 进入该标题
+        # 段落文本等于下一个待匹配标题 -> 进入该标题
         if ptr < len(headings) and text == headings[ptr][1]:
             current = ptr
             ptr += 1
             continue
         
-        # 非标题正文 → 标记当前标题非空
+        # 非标题正文 -> 标记当前标题非空
         if current >= 0:
             empty_set.discard(current)
 

@@ -92,6 +92,7 @@ def extract_docx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
     _extract_docx_body_ordered(doc, lines, style_count)
     if assets_result:
         assets.append_assets_summary(lines, assets_result)
+    
     return lines
 
 
@@ -100,13 +101,13 @@ def _extract_doc_com(filepath: Path, assets_dir: Path | None = None) -> list[str
     if platform != 'win32':
         return ['[Error: 旧格式 .doc 提取需要 Windows + Microsoft Office]']
 
-    if not Path(DOC_SCRIPT).exists():
+    if not DOC_SCRIPT.exists():
         return ['[Error: 找不到 Word 提取脚本]']
 
     tmp_out = mktemp_in_dir(filepath, prefix='tmp_doc_') / 'output.txt'
     try:
         run(
-            ['powershell', '-ExecutionPolicy', 'Bypass', '-File', DOC_SCRIPT,
+            ['powershell', '-ExecutionPolicy', 'Bypass', '-File', str(DOC_SCRIPT),
              '-DocPath', str(filepath), '-OutFile', str(tmp_out)],
             stdout=DEVNULL, stderr=DEVNULL, timeout=120
         )
@@ -129,8 +130,8 @@ def _extract_docx_body_ordered(doc, lines: list[str], style_count: dict[str, int
     """
     按文档顺序提取 docx 内容，添加 Markdown 标题标记。
 
-    通过迭代 XML body 使段落和表格以真实文档顺序出现
-    （有别于 doc.paragraphs + doc.tables 这种分离序列的方式）。
+    通过迭代 XML body 使段落和表格以真实文档顺序出现,
+    有别于 doc.paragraphs + doc.tables 这种分离序列的方式。
     """
     from docx.oxml.ns import qn
 
@@ -146,7 +147,7 @@ def _extract_docx_body_ordered(doc, lines: list[str], style_count: dict[str, int
                 continue
             # 用多种方式检测标题级别，优先级：
             # 1. detect_chinese_heading 最准确（"实验七"=1、"实验目的"=2）
-            # 2. 自定义样式推断（a4 → 2，与真实级别对比后可能高估或低估）
+            # 2. 自定义样式推断（a4 -> 2，与真实级别对比后可能高估或低估）
             # 取最小值（更高级别）作为最终级别
             heading_level = detect_chinese_heading(text)
             style_level = _get_heading_style_level(child, style_count)
@@ -166,6 +167,7 @@ def _extract_docx_body_ordered(doc, lines: list[str], style_count: dict[str, int
                 ]
                 if any(c for c in cells):
                     lines.append(' | '.join(cells))
+           
             lines.append('')
 
 
@@ -175,7 +177,7 @@ def _get_heading_style_level(child, style_count: dict[str, int] | None = None) -
 
     按以下顺序检测：
     1. Word 内置标题样式（"Heading 1"-"Heading 9"）
-    2. 自定义标题样式——通过文档中所有段落的样式出现频率推断：
+    2. 自定义标题样式：通过文档中所有段落的样式出现频率推断,
        如果段落的样式不是正文样式，且在整个文档中 ≥2 次出现，则视为标题。
 
     没有匹配时返回 None。
@@ -202,9 +204,11 @@ def _get_heading_style_level(child, style_count: dict[str, int] | None = None) -
 
     # 策略 2：通过样式名称在段落中出现的次数推断自定义标题样式
     # 高频出现的非正文样式很可能是自定义标题样式（如 a4, a3 等）
-    if style_count and style_val.lower() not in _BODY_STYLE_NAMES:
-        hits = style_count.get(style_val.lower(), 0)
-        if hits >= 2:
-            return 2  # 自定义标题默认视为 2 级
-
+    if not style_count or style_val.lower() in _BODY_STYLE_NAMES:
+        return None
+    
+    hits = style_count.get(style_val.lower(), 0)
+    if hits >= 2:
+        return 2  # 自定义标题默认视为 2 级
+    
     return None

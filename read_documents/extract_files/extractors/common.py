@@ -36,6 +36,6 @@ def kill_orphan_com(process_name: str) -> None:
 
 # COM 辅助脚本路径 — ps1_scripts/ 目录
 _SCRIPT_DIR = Path(__file__).resolve().parent.parent.parent / 'ps1_scripts'
-PPT_SCRIPT: str = str(_SCRIPT_DIR / 'extract_ppt.ps1')
-DOC_SCRIPT: str = str(_SCRIPT_DIR / 'extract_doc.ps1')
-XLS_SCRIPT: str = str(_SCRIPT_DIR / 'extract_xls.ps1')
+PPT_SCRIPT: Path = _SCRIPT_DIR / 'extract_ppt.ps1'
+DOC_SCRIPT: Path = _SCRIPT_DIR / 'extract_doc.ps1'
+XLS_SCRIPT: Path = _SCRIPT_DIR / 'extract_xls.ps1'

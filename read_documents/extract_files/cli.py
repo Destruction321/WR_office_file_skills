@@ -29,7 +29,7 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    # --- 标准化所有路径参数（MSYS → Windows） ---
+    # --- 标准化所有路径参数（MSYS -> Windows） ---
     if args.root:
         args.root = discovery.normalize_path(args.root)
     if args.paths_file:

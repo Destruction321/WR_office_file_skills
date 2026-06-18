@@ -90,13 +90,13 @@ def _extract_ppt_com(filepath: Path, assets_dir: Path | None = None) -> list[str
     """通过 Windows COM 提取旧 .ppt 文件。"""
     if platform != 'win32':
         return ['[Error: 旧格式 .ppt 提取需要 Windows + Microsoft Office]']
-    if not Path(PPT_SCRIPT).exists():
+    if not PPT_SCRIPT.exists():
         return ['[Error: 找不到 PowerPoint 提取脚本]']
 
     tmp_out = mktemp_in_dir(filepath, prefix='tmp_ppt_') / 'output.txt'
     try:
         run(
-            ['powershell', '-ExecutionPolicy', 'Bypass', '-File', PPT_SCRIPT,
+            ['powershell', '-ExecutionPolicy', 'Bypass', '-File', str(PPT_SCRIPT),
              '-PptPath', str(filepath), '-OutFile', str(tmp_out)],
             stdout=DEVNULL, stderr=DEVNULL, timeout=120
         )

@@ -81,7 +81,8 @@ def filter_section(lines: list[str], section: str) -> list[str]:
 
 def _filter_by_heading_markers(lines: list[str], section_low: str) -> list[str]:
     """
-    按 Markdown 标题标记（# ## ###）过滤,
+    按 Markdown 标题标记（# ## ###）过滤。
+    
     从匹配关键字的标题开始，到同级或更高级别标题结束。
     """
     result: list[str] = []

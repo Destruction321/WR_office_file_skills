@@ -18,10 +18,10 @@ def normalize_path(path: str) -> str:
     - 此函数检测常见 MSYS 模式并将其转换，使 Python 能打开文件。
     在非 Windows 平台上原样返回。
 
-    ### 支持的转换（仅 Windows）:
-      - /tmp/...  →  <TEMP>\\\\...
-      - /c/...    →  C:\\\\...  （盘符映射）
-      - /home/user/...  →  <USERPROFILE>\\\\...
+    ## 支持的转换（仅 Windows）:
+    1. /tmp/...  ->  %TEMP%\\\\...
+    2. /c/...    ->  C:\\\\...  （盘符映射）
+    3. /home/user/...  ->  %USERPROFILE%\\\\...
 
     - 如果路径看起来已经是 Windows 路径（首字符后有 :，如 C:\\\\...），则原样返回。
 
@@ -43,23 +43,20 @@ def normalize_path(path: str) -> str:
     if path.startswith('\\\\'):
         return path
 
-    # /tmp/ → Windows TEMP 目录
+    # /tmp/ -> Windows TEMP 目录
     if path.startswith('/tmp/') or path == '/tmp':
         suffix = path[5:] if path.startswith('/tmp/') else ''
-        return str(Path(
-            environ.get(
-                'TEMP',
-                str(Path(environ.get('USERPROFILE', ''), 'AppData', 'Local', 'Temp'))
-            )) / suffix
-        )
+        return str(Path(environ.get(
+            'TEMP', str(Path(environ.get('USERPROFILE', ''), 'AppData', 'Local', 'Temp'))
+        )) / suffix)
 
-    # /c/... → C:\... （MSYS 盘符映射）
+    # /c/... -> C:\... （MSYS 盘符映射）
     m = match(r'^/([a-zA-Z])/(.*)', path)
     if m:
         rest = m.group(2).replace('/', sep)
         return f'{m.group(1).upper()}:{sep}{rest}'
 
-    # /home/user/... → USERPROFILE
+    # /home/user/... -> USERPROFILE
     if path.startswith('/home/'):
         rest = path[6:]  # 去掉 /home/
         return str(Path(environ.get('USERPROFILE', Path.home())) / rest.replace('/', sep))
@@ -95,15 +92,13 @@ def find_files(root: str, pattern: str | None = None, max_depth: int = 6) -> lis
         for f in filenames:
             if f.startswith('~$'):
                 continue  # 跳过 Office 临时锁文件
-            
             if Path(f).suffix.lower() not in EXTENSIONS:
                 continue
-            
             if pattern:
                 pat_low = pattern.lower()
                 if pat_low not in f.lower() and pat_low not in dirpath.lower():
                     continue
-            
+ 
             results.append(str(Path(dirpath) / f))
 
     return results

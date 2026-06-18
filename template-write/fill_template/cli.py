@@ -75,7 +75,7 @@ def main() -> None:
 
         section_path = Path(args.section_data_file)
 
-        # 按后缀自动判断格式：.md → Markdown，.json → JSON
+        # 按后缀自动判断格式：.md -> Markdown，.json -> JSON
         if section_path.suffix.lower() == '.md':
             sections: dict = parse_sections_md(
                 section_path.read_text(encoding='utf-8')
@@ -84,7 +84,7 @@ def main() -> None:
             with open(section_path, 'r', encoding='utf-8') as f:
                 sections = load(f)
 
-        # 同文件 → 原地修改；不同文件 → 先复制
+        # 同文件 -> 原地修改；不同文件 -> 先复制
         # dry-run 模式不创建输出文件（只验证定位），直接对模板读取
         if not same_file and not args.dry_run:
             if output.exists() and not args.force:

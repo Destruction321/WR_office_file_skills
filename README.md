@@ -15,7 +15,7 @@ Claude Code 技能集合 —— 增强 AI 对文档文件的读写能力。
 
 ## read_documents — 文档读取
 
-读取中文路径（或其他非 ASCII 路径）的文档文件，避免 shell 编码损坏和 OPC 库编码问题。
+读取中文路径（或其他非 ASCII 路径）的文档文件，避免 shell 编码损坏。
 
 **支持格式：**
 
@@ -40,7 +40,7 @@ Claude Code 技能集合 —— 增强 AI 对文档文件的读写能力。
 
 向已有模板写入内容生成新文档（原模板不动）。两种模式：
 
-**节级填充**（主要能力，面向结构化报告）：`--scan` 输出标题结构与样式 → AI 据此决策 → `--section-data-file` 按标题定位节、以样式名定边界、清空旧内容、插入文本/图片、读回验证。工具只做机械操作，智能判断交给 AI。支持 `父标题 / 子标题` 限定语法消歧重名标题。
+**节级填充**（主要能力，面向结构化报告）：`--scan` 输出标题结构与样式 -> AI 据此决策 -> `--section-data-file` 按标题定位节、以样式名定边界、清空旧内容、插入文本/图片、读回验证。工具只做机械操作，智能判断交给 AI。支持 `父标题 / 子标题` 限定语法消歧重名标题。
 
 **占位符替换**（简单场景）：识别 `{{name}}` 等占位符并替换。
 
@@ -110,6 +110,6 @@ pip install python-docx python-pptx pdfplumber PyMuPDF openpyxl olefile xlrd
           ├── deps.py                # 自动安装依赖
           ├── docx_filler.py         # docx 占位符替换（run 级）
           ├── docx_section_filler.py # docx 节级填充 + 扫描（核心）
-          ├── md_parser.py           # Markdown → 节内容解析
+          ├── md_parser.py           # Markdown -> 节内容解析
           └── text_filler.py         # md/txt 占位符替换
 ```

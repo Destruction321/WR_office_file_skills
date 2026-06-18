@@ -86,11 +86,13 @@ def extract_ooxml_assets(filepath: Path, assets_dir: Path, ext_key: str) -> dict
                 result[cat].append(label)
 
                 _try_decompose_ole(out_path, assets_dir, cat, result)
+    
     except BadZipFile:
         if ext_key not in ('.xls', '.doc'):
             print(f'  [警告] 非有效 ZIP/OOXML 文件: {filepath.name}', file=stderr)
     except Exception as e:
         print(f'  [警告] 资源提取失败 {filepath.name}: {e}', file=stderr)
+    
     return result
 
 
@@ -123,6 +125,7 @@ def extract_pdf_assets(filepath: Path, assets_dir: Path) -> dict[str, list[str]]
             doc.close()
         except Exception as e:
             print(f'  [警告] PDF 图片提取失败: {e}', file=stderr)
+    
     return result
 
 

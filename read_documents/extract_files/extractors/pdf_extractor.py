@@ -51,6 +51,7 @@ def extract_pdf(filepath: Path, assets_dir: Path | None = None) -> list[str]:
                 assets.append_assets_summary(lines, assets_result)
             if lines:
                 return lines
+        
         except Exception as e:
             print(f'  [警告] pdfplumber 失败: {e}，尝试 PyPDF2 ...', file=stderr)
 
@@ -72,5 +73,6 @@ def extract_pdf(filepath: Path, assets_dir: Path | None = None) -> list[str]:
         if assets_result:
             assets.append_assets_summary(lines, assets_result)
         return lines
+    
     except Exception as e:
         return [f'[Error: 读取 PDF 失败: {e}]']

@@ -60,4 +60,5 @@ def extract_file(filepath: str, assets_dir: str | None = None) -> list[str]:
     handler = EXTRACTORS.get(fp.suffix.lower())
     if handler is None:
         return _extract_plain_text(fp, ad)
+    
     return handler(fp, ad)

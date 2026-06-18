@@ -109,13 +109,13 @@ def _extract_xls_com(filepath: Path, assets_dir: Path | None = None) -> list[str
     """通过 Windows COM 提取旧 .xls 文件。"""
     if platform != 'win32':
         return ['[Error: 旧格式 .xls 提取需要 Windows + Microsoft Office]']
-    if not Path(XLS_SCRIPT).exists():
+    if not XLS_SCRIPT.exists():
         return ['[Error: 找不到 Excel 提取脚本。请先安装 xlrd: pip install xlrd]']
 
     tmp_out = mktemp_in_dir(filepath, prefix='tmp_xls_') / 'output.txt'
     try:
         run(
-            ['powershell', '-ExecutionPolicy', 'Bypass', '-File', XLS_SCRIPT,
+            ['powershell', '-ExecutionPolicy', 'Bypass', '-File', str(XLS_SCRIPT),
              '-XlsPath', str(filepath), '-OutFile', str(tmp_out)],
             stdout=DEVNULL, stderr=DEVNULL, timeout=120
         )

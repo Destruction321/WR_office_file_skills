@@ -27,7 +27,7 @@ tools:
 Every time someone bypassed the package and hand-wrote `python-docx` scripts, it went wrong. Concretely, on a real task this caused:
 
 - **Reversed content** — `insert_paragraph_before()` + `reversed()` put every section in backwards; took a manual 64-paragraph cleanup to fix.
-- **Wrong styles** — hardcoded `Heading 2`/`Title` while the template actually used custom `a4`/`a3` styles → inserted content looks nothing like the rest of the document.
+- **Wrong styles** — hardcoded `Heading 2`/`Title` while the template actually used custom `a4`/`a3` styles -> inserted content looks nothing like the rest of the document.
 - **Missing images** — inline scripts wrote `图6.1.1` as plain text instead of embedding the PNG. The whole point of the task was the images.
 - **Fragile indices** — manually probing `doc.paragraphs[288]` breaks the moment anything is inserted earlier.
 - **6× the tool calls** — 29 calls vs 5 when the package is used.
@@ -65,10 +65,10 @@ cd ~/.claude/skills/template-write && python -m fill_template \
 
 From the scan output, determine:
 
-- **Custom heading style** (e.g. `a4`, `标题 1`) → pass with `--heading-style`
-- **Heading names** → use exact text for section matching
-- **Duplicate heading names** → use `"Parent / Child"` scoped syntax
-- **Which sections are empty** `[EMPTY]` → these need filling
+- **Custom heading style** (e.g. `a4`, `标题 1`) -> pass with `--heading-style`
+- **Heading names** -> use exact text for section matching
+- **Duplicate heading names** -> use `"Parent / Child"` scoped syntax
+- **Which sections are empty** `[EMPTY]` -> these need filling
 
 ### Step 2 — Read the template for content requirements (if needed)
 
@@ -153,8 +153,8 @@ cd ~/.claude/skills/template-write && python -m fill_template \
 
 If the template has both placeholders and empty sections:
 
-1. Run Mode A first → filled copy
-2. Run Mode B on the **filled copy** as `--template` → final document
+1. Run Mode A first -> filled copy
+2. Run Mode B on the **filled copy** as `--template` -> final document
 
 ### Step 4 — Verify and clean up
 
@@ -164,17 +164,17 @@ If the template has both placeholders and empty sections:
 
 ## Markdown syntax reference (Mode B)
 
-| Syntax | Effect |
-| ------ | ------ |
-| `# ~ ###### 标题` | Section delimiter (matches docx heading text) |
-| `## 父标题 / 子标题` | Scoped: find parent, then child within it |
-| `![](path)` | Image (absolute path) |
-| `![](path){width=5.0}` | Image with custom width in inches (default 5.5) |
-| `**bold**` | Bold run |
-| `*italic*` | Italic run |
-| `1.` or `-` prefix | List item (each rendered as separate paragraph) |
-| Blank line | Paragraph separator |
-| Consecutive non-blank lines | Merged into one paragraph |
+| Syntax                      | Effect                                          |
+| --------------------------- | ----------------------------------------------- |
+| `# ~ ###### 标题`           | Section delimiter (matches docx heading text)   |
+| `## 父标题 / 子标题`        | Scoped: find parent, then child within it       |
+| `![](path)`                 | Image (absolute path)                           |
+| `![](path){width=5.0}`      | Image with custom width in inches (default 5.5) |
+| `**bold**`                  | Bold run                                        |
+| `*italic*`                  | Italic run                                      |
+| `1.` or `-` prefix          | List item (each rendered as separate paragraph) |
+| Blank line                  | Paragraph separator                             |
+| Consecutive non-blank lines | Merged into one paragraph                       |
 
 ## Key rules
 
@@ -187,14 +187,14 @@ If the template has both placeholders and empty sections:
 
 ## Troubleshooting
 
-| Symptom | Cause | Fix |
-| ------- | ----- | --- |
-| "0 sections filled" | Heading text doesn't match | Check scan output, use exact text |
-| Section fills into wrong location | Duplicate heading names | Use `Parent / Child` scoped syntax |
-| Content overflows into next section | Boundary not detected | Add `--heading-style` for custom styles |
-| Style not recognized | Custom style not passed | Use `--heading-style <style>` from scan output |
-| Tool crashes on fill | Missing dependency | `pip install python-docx` |
-| "文件已存在" error | Dry-run left an output file | Add `--force` |
+| Symptom                             | Cause                       | Fix                                            |
+| ----------------------------------- | --------------------------- | ---------------------------------------------- |
+| "0 sections filled"                 | Heading text doesn't match  | Check scan output, use exact text              |
+| Section fills into wrong location   | Duplicate heading names     | Use `Parent / Child` scoped syntax             |
+| Content overflows into next section | Boundary not detected       | Add `--heading-style` for custom styles        |
+| Style not recognized                | Custom style not passed     | Use `--heading-style <style>` from scan output |
+| Tool crashes on fill                | Missing dependency          | `pip install python-docx`                      |
+| "文件已存在" error                  | Dry-run left an output file | Add `--force`                                  |
 
 ## If the package is broken
 

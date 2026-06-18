@@ -2,8 +2,8 @@
 name: read_documents
 description: >
     Read document files (doc, docx, ppt, pptx, xls, xlsx, pdf) when file paths
-    contain Chinese or other non-ASCII characters. Avoids shell encoding corruption
-    and OPC library encoding bugs. Extracts content to current working directory
+    contain Chinese or other non-ASCII characters. Avoids shell encoding corruption.
+    Extracts content to current working directory
     and cleans up temp files. Supports --section for extracting only a specific
     section (saves tokens). Auto-installs missing Python packages.
 triggers:
@@ -46,15 +46,15 @@ _P="$(pwd)" && cd ~/.claude/skills/read_documents && python -m extract_files \
 
 ## Format support
 
-| Format  | Text                         | Assets                             | Notes                   |
-| ------- | ---------------------------- | ---------------------------------- | ----------------------- |
-| `.docx` | `python-docx`                | `word/media/` + `word/embeddings/` | Safe-path for non-ASCII |
-| `.doc`  | `python-docx` → COM fallback | ZIP/XML or **NO**                  | COM needs Office (Win)  |
-| `.pptx` | `python-pptx`                | `ppt/media/` + `ppt/embeddings/`   | Safe-path for non-ASCII |
-| `.ppt`  | COM via PowerShell           | **NO**                             | COM needs Office (Win)  |
-| `.pdf`  | `pdfplumber` → `PyPDF2`      | PyMuPDF per-page                   | Safe-path for non-ASCII |
-| `.xlsx` | `openpyxl`                   | `xl/media/`                        | Safe-path for non-ASCII |
-| `.xls`  | `xlrd` → COM fallback        | **NO**                             | COM needs Office (Win)  |
+| Format  | Text                          | Assets                             | Notes                   |
+| ------- | ----------------------------- | ---------------------------------- | ----------------------- |
+| `.docx` | `python-docx`                 | `word/media/` + `word/embeddings/` | Pure Python (no Office) |
+| `.doc`  | `python-docx` -> COM fallback | ZIP/XML or **NO**                  | COM needs Office (Win)  |
+| `.pptx` | `python-pptx`                 | `ppt/media/` + `ppt/embeddings/`   | Pure Python (no Office) |
+| `.ppt`  | COM via PowerShell            | **NO**                             | COM needs Office (Win)  |
+| `.pdf`  | `pdfplumber` -> `PyPDF2`      | PyMuPDF per-page                   | Pure Python (no Office) |
+| `.xlsx` | `openpyxl`                    | `xl/media/`                        | Pure Python (no Office) |
+| `.xls`  | `xlrd` -> COM fallback        | **NO**                             | COM needs Office (Win)  |
 
 Encrypted ZIP entries are noted but never block extraction.
 
@@ -64,14 +64,14 @@ Encrypted ZIP entries are noted but never block extraction.
 
 Use `--section KEYWORD` to extract only matching sections — **saves output tokens**.
 
-| Format           | Boundary detection                                                      |
-| ---------------- | ----------------------------------------------------------------------- |
-| `.docx`          | Heading styles + Chinese patterns → markdown headings → filter to match |
-| `.doc`           | Same as docx (fallback = full text)                                     |
-| `.pptx`          | Slide markers → matches + 1 adjacent                                    |
-| `.ppt`           | Same as pptx (fallback = full text)                                     |
-| `.pdf`           | Page markers → matches + 1 adjacent                                     |
-| `.xlsx` / `.xls` | Sheet markers whose name/content matches                                |
+| Format           | Boundary detection                                                        |
+| ---------------- | ------------------------------------------------------------------------- |
+| `.docx`          | Heading styles + Chinese patterns -> markdown headings -> filter to match |
+| `.doc`           | Same as docx (fallback = full text)                                       |
+| `.pptx`          | Slide markers -> matches + 1 adjacent                                     |
+| `.ppt`           | Same as pptx (fallback = full text)                                       |
+| `.pdf`           | Page markers -> matches + 1 adjacent                                      |
+| `.xlsx` / `.xls` | Sheet markers whose name/content matches                                  |
 
 ```bash
 _P="$(pwd)" && cd ~/.claude/skills/read_documents && python -m extract_files \

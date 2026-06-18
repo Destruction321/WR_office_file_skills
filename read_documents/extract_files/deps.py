@@ -36,4 +36,5 @@ def ensure_import(pip_name: str, import_name: str | None = None, attr: str | Non
 
     if attr:
         return getattr(mod, attr)
+    
     return mod
