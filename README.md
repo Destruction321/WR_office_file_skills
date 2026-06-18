@@ -108,7 +108,7 @@ pip install python-docx python-pptx pdfplumber PyMuPDF openpyxl chardet olefile 
           ├── cli.py                 # 参数解析、模式分发
           ├── filler.py              # 占位符替换主入口、格式分发
           ├── deps.py                # 自动安装依赖
-          ├── docx_filler.py         # docx 占位符替换（run 级）
+          ├── docx_placeholder.py    # docx 占位符替换（run 级）
           ├── docx_section_filler.py # docx 节级填充 + 扫描（核心）
           ├── md_parser.py           # Markdown -> 节内容解析
           └── text_filler.py         # md/txt 占位符替换

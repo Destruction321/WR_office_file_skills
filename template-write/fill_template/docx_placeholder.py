@@ -1,5 +1,5 @@
 """
-# docx 模板填写器。
+# docx 占位符替换（placeholder）。
 
 - 关键设计：逐 run 替换占位符，不破坏段落格式。
 如果占位符跨 run 分散（例如 "{{na" 在 run 1，"me}}" 在 run 2），

@@ -58,7 +58,7 @@ def fill_template(template_path: str | Path,
     if ext in _DOCX_EXTS:
         # docx：先复制模板，再原地替换
         copy2(template_path, output_path)
-        from .docx_filler import fill_docx
+        from .docx_placeholder import fill_docx
         fill_docx(output_path, content_map, compiled)
 
     elif ext in _TEXT_EXTS:
