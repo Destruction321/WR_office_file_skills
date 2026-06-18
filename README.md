@@ -63,7 +63,7 @@ Claude Code 技能集合 —— 增强 AI 对文档文件的读写能力。
 git clone https://github.com/Destruction321/WR_office_file_skills.git ~/.claude/skills
 
 # 安装全部依赖（如需）
-pip install python-docx python-pptx pdfplumber PyMuPDF openpyxl olefile xlrd
+pip install python-docx python-pptx pdfplumber PyMuPDF openpyxl chardet olefile xlrd
 ```
 
 > 各 skill 首次使用时若发现缺失包会自动安装，无需手动预装。
@@ -88,7 +88,7 @@ pip install python-docx python-pptx pdfplumber PyMuPDF openpyxl olefile xlrd
 │    │    ├── assets.py            # 图片/媒体/OLE 资源提取
 │    │    ├── ole.py               # OLE 复合文档分解
 │    │    ├── section.py           # 按关键字过滤小节
-│    │    ├── util.py              # 安全路径、魔数识别
+│    │    ├── util.py              # 临时目录、魔数识别
 │    │    └── extractors/          # 按格式拆分的提取器子包
 │    │         ├── __init__.py      # 格式分发器 + extract_file()
 │    │         ├── common.py        # COM 清理、脚本路径

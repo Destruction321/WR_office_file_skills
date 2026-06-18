@@ -10,6 +10,8 @@ from os import name
 from pathlib import Path
 from re import Pattern, Match
 
+from .deps import ensure_import
+
 
 def fill_text(template_path: Path,
               output_path: Path,
@@ -43,10 +45,10 @@ def fill_text(template_path: Path,
 def _detect_encoding(path: Path) -> str:
     """检测文件编码，优先 chardet，回退到根据系统区域设置猜测。"""
     try:
-        import chardet
+        detect = ensure_import('chardet', attr='detect')
         with open(path, 'rb') as f:
             raw = f.read(4096)
-        result = chardet.detect(raw)
+        result = detect(raw)
         return result.get('encoding') or 'utf-8'
     
     except ImportError:
