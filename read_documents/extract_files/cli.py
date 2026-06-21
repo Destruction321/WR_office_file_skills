@@ -62,6 +62,13 @@ def main() -> None:
             print(f)
         exit(0)
 
+    # --- 确定并创建输出目录 ---
+    if args.paths_file:
+        output_dir = Path(args.paths_file).parent
+    else:
+        output_dir = Path(file_list[0]).parent / 'temp'
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     # --- 逐个提取文件（各格式提取器内部自行处理缺失依赖） ---
     all_lines: list[str] = []
     for i, filepath in enumerate(file_list, 1):
@@ -83,16 +90,7 @@ def main() -> None:
         
         all_lines.append('')
 
-    # --- 写入输出 ---
-    if args.paths_file:
-        # DIRECT 模式：输出到 paths-file 同目录
-        output_dir = Path(args.paths_file).parent
-    
-    else:
-        # SEARCH 模式：输出到第一个文件所在目录的 temp/
-        output_dir = Path(file_list[0]).parent / 'temp'
-
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # --- 写入输出（output_dir 已在上方创建） ---
     output_path = str(output_dir / 'tmp_output.txt')
     Path(output_path).write_text('\n'.join(all_lines), encoding='utf-8')
 
