@@ -24,6 +24,25 @@ EXTRACTORS = {
     '.pdf': extract_pdf,
 }
 
+def extract_file(filepath: str, assets_dir: str | None = None) -> list[str]:
+    """
+    ## 从单个文档文件中提取文本，按扩展名分发。
+
+    Args:
+        filepath (str): 文档文件路径。
+        assets_dir (str | None): 资源提取目标目录（可选）。
+
+    Returns:
+        list[str]: 提取出的文本行。出错时返回含 `[Error ...]` 的单行列表。
+    """
+    fp = Path(filepath)
+    ad = Path(assets_dir) if assets_dir else None
+    handler = EXTRACTORS.get(fp.suffix.lower())
+    if handler is None:
+        return _extract_plain_text(fp, ad)
+    
+    return handler(fp, ad)
+
 
 def _extract_plain_text(filepath: Path, assets_dir: Path | None = None) -> list[str]:
     """
@@ -42,23 +61,3 @@ def _extract_plain_text(filepath: Path, assets_dir: Path | None = None) -> list[
             return [f'[Error: 读取纯文本失败: {e}]']
     
     return ['[Error: 无法解码此文件（纯文本回退失败）]']
-
-
-def extract_file(filepath: str, assets_dir: str | None = None) -> list[str]:
-    """
-    ## 从单个文档文件中提取文本，按扩展名分发。
-
-    Args:
-        filepath (str): 文档文件路径。
-        assets_dir (str | None): 资源提取目标目录（可选）。
-
-    Returns:
-        list[str]: 提取出的文本行。出错时返回含 [Error ...] 的单行列表。
-    """
-    fp = Path(filepath)
-    ad = Path(assets_dir) if assets_dir else None
-    handler = EXTRACTORS.get(fp.suffix.lower())
-    if handler is None:
-        return _extract_plain_text(fp, ad)
-    
-    return handler(fp, ad)
