@@ -49,7 +49,7 @@ def extract_doc(filepath: Path, assets_dir: Path | None = None) -> list[str]:
 
 def extract_docx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
     """
-    - 通过 `python-docx` 提取 `.docx` 文件，保留段落/表格交错顺序和标题样式。
+    ## 通过 `python-docx` 提取 `.docx` 文件，保留段落/表格交错顺序和标题样式。
 
     Args:
         filepath (Path): 文档文件路径。
