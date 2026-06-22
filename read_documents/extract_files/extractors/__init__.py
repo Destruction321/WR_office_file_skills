@@ -39,12 +39,12 @@ def extract_file(filepath: str, assets_dir: str | None = None) -> list[str]:
     ad = Path(assets_dir) if assets_dir else None
     handler = EXTRACTORS.get(fp.suffix.lower())
     if handler is None:
-        return _extract_plain_text(fp, ad)
+        return _extract_plain_text(fp)
     
     return handler(fp, ad)
 
 
-def _extract_plain_text(filepath: Path, assets_dir: Path | None = None) -> list[str]:
+def _extract_plain_text(filepath: Path) -> list[str]:
     """
     不认识的后缀当纯文本读，仅用于 DIRECT 模式。
 
