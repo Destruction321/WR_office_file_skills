@@ -111,6 +111,11 @@ When the template has empty sections under headings needing full content (paragr
 
 **3a.** Write content as a Markdown file — this is where Claude's intelligence goes:
 
+> **Formatting rules:**
+>
+> - **Don't insert spaces** between Chinese and Latin/digit characters.
+> - **Prefer paragraph breaks.** Separate logical points with blank lines (paragraph break, Enter in Word), rather than piling everything into one paragraph with only soft line breaks (Shift+Enter in Word).
+
 ```markdown
 ## 实验八 / 实验过程及分析
 
@@ -166,8 +171,8 @@ If the template has both placeholders and empty sections:
 
 | Syntax                      | Effect                                          |
 | --------------------------- | ----------------------------------------------- |
-| `# ~ ###### 标题`           | Section delimiter (matches docx heading text)   |
-| `## 父标题 / 子标题`        | Scoped: find parent, then child within it       |
+| `# ~ ###### heading`        | Section delimiter (matches docx heading text)   |
+| `## Parent / Child`         | Scoped: find parent, then child within it       |
 | `![](path)`                 | Image (absolute path)                           |
 | `![](path){width=5.0}`      | Image with custom width in inches (default 5.5) |
 | `**bold**`                  | Bold run                                        |
@@ -184,6 +189,8 @@ If the template has both placeholders and empty sections:
 4. **Pass `--heading-style`** when the scan shows custom styles — this is how the tool knows what defines a section boundary.
 5. **Use scoped syntax** (`Parent / Child`) when heading names are duplicated across sections.
 6. **The tool does not infer.** If it can't find a heading, check the scan output and adjust your parameters.
+7. **Don't insert spaces between Chinese and Latin/digit characters.** Chinese typography does not use spaces between CJK and Latin script or digits.
+8. **Prefer paragraph breaks over soft line breaks.** Separate logical points with blank lines (paragraph break, Enter), not soft line breaks (Shift+Enter) that pile multiple ideas into one paragraph.
 
 ## Troubleshooting
 
