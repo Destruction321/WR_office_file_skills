@@ -57,9 +57,11 @@ def scan_docx(doc_path: Path) -> None:
         style = _get_style_name(p_elem)
         text = _text_of(p_elem).strip()
         all_paras.append((style, text))
-        if style and text:
-            style_counts[style] = style_counts.get(style, 0) + 1
-            style_texts.setdefault(style, []).append(text)
+        if not style or not text:
+            continue
+
+        style_counts[style] = style_counts.get(style, 0) + 1
+        style_texts.setdefault(style, []).append(text)
 
     # 识别标题段落：Word 内置 Heading 或「短文本 + 高频」的自定义样式
     # 关键：正文样式（如 a8）的段落较长，标题样式（如 a4）的段落较短——

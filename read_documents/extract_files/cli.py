@@ -39,7 +39,6 @@ def main() -> None:
 
     # --- 收集文件列表 ---
     file_list: list[str] = []
-
     if args.paths_file:
         file_list = discovery.read_paths_file(args.paths_file)
     

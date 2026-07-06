@@ -44,15 +44,13 @@ try {
     $doc.Close($false)
     $lines -join "`n" | Out-File -FilePath $OutFile -Encoding UTF8
     Write-Host "Output written to: $OutFile"
-}
-catch {
+} catch {
     $lines = @()
     $lines += "[Error: Failed to open Word file]"
     $lines += $_.Exception.Message
     $lines -join "`n" | Out-File -FilePath $OutFile -Encoding UTF8
     Write-Error $_.Exception.Message
-}
-finally {
+} finally {
     $word.Quit()
     [System.Runtime.InteropServices.Marshal]::ReleaseComObject($word) | Out-Null
 }

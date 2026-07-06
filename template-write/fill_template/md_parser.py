@@ -128,10 +128,12 @@ def _parse_inline(text: str) -> list[dict[str, Any]]:
     for part in parts:
         if not part:
             continue
+        
         if part.startswith('**') and part.endswith('**'):
             runs.append({"text": part[2:-2], "bold": True})
         elif part.startswith('*') and part.endswith('*'):
             runs.append({"text": part[1:-1], "italic": True})
         else:
             runs.append({"text": part})
+    
     return runs

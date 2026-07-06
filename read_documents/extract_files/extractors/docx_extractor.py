@@ -81,9 +81,11 @@ def extract_docx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
         pPr = p_elem.find(qn("w:pPr"))
         if pPr is None:
             continue
+        
         pStyle = pPr.find(qn("w:pStyle"))
         if pStyle is None:
             continue
+        
         val = pStyle.get(qn("w:val"), "")
         if val:
             style_count[val.lower()] = style_count.get(val.lower(), 0) + 1

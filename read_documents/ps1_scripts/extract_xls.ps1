@@ -47,15 +47,13 @@ try {
     $wb.Close($false)
     $lines -join "`n" | Out-File -FilePath $OutFile -Encoding UTF8
     Write-Host "Output written to: $OutFile"
-}
-catch {
+} catch {
     $lines = @()
     $lines += "[Error: Failed to open Excel file]"
     $lines += $_.Exception.Message
     $lines -join "`n" | Out-File -FilePath $OutFile -Encoding UTF8
     Write-Error $_.Exception.Message
-}
-finally {
+} finally {
     $excel.Quit()
     [System.Runtime.InteropServices.Marshal]::ReleaseComObject($excel) | Out-Null
 }

@@ -1,5 +1,6 @@
 """OLE 复合文档分解 — 从 .bin 嵌入对象中提取原生数据。"""
 from pathlib import Path
+from sys import stderr
 from zipfile import ZipFile
 
 from .deps import ensure_import
@@ -62,7 +63,6 @@ def decompose_ole_object(filepath: Path, out_dir: Path) -> list[tuple[str | None
             _extract_nested_zip(out_path, stem, out_dir, extracted)
 
     except Exception as e:
-        from sys import stderr
         print(f'  [警告] OLE 分解失败: {e}', file=stderr)
 
     return extracted

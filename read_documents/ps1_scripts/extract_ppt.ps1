@@ -47,15 +47,13 @@ try {
     $pres.Close()
     $lines -join "`n" | Out-File -FilePath $OutFile -Encoding UTF8
     Write-Host "Output written to: $OutFile"
-}
-catch {
+} catch {
     $lines = @()
     $lines += "[Error: Failed to open PowerPoint file]"
     $lines += $_.Exception.Message
     $lines -join "`n" | Out-File -FilePath $OutFile -Encoding UTF8
     Write-Error $_.Exception.Message
-}
-finally {
+} finally {
     $ppt.Quit()
     [System.Runtime.InteropServices.Marshal]::ReleaseComObject($ppt) | Out-Null
 }
