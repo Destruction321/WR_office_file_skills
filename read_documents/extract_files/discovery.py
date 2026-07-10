@@ -1,5 +1,5 @@
 """文件发现 — 遍历目录或读取路径文件。"""
-from os import walk, environ, sep
+from os import environ, sep
 from pathlib import Path
 from re import match
 from sys import platform, stderr
@@ -46,9 +46,8 @@ def normalize_path(path: str) -> str:
     # /tmp/ -> Windows TEMP 目录
     if path.startswith('/tmp/') or path == '/tmp':
         suffix = path[5:] if path.startswith('/tmp/') else ''
-        return str(Path(environ.get(
-            'TEMP', str(Path(environ.get('USERPROFILE', ''), 'AppData', 'Local', 'Temp'))
-        )) / suffix)
+        default_temp = Path(environ.get('USERPROFILE', '')) / 'AppData' / 'Local' / 'Temp'
+        return str(Path(environ.get('TEMP', str(default_temp))) / suffix)
 
     # /c/... -> C:\... （MSYS 盘符映射）
     m = match(r'^/([a-zA-Z])/(.*)', path)
@@ -83,8 +82,9 @@ def find_files(root: str, pattern: str | None = None, max_depth: int = 6) -> lis
     def on_error(err: OSError) -> None:
         print(f'  [警告] 无法访问: {err}', file=stderr)
 
-    for dirpath, dirnames, filenames in walk(root, onerror=on_error):
-        depth = dirpath.rstrip(sep).count(sep) - base_depth
+    for dirpath, dirnames, filenames in Path(root).walk(on_error=on_error):
+        dir_path = str(dirpath)
+        depth = dir_path.count(sep) - base_depth
         if depth > max_depth:
             dirnames.clear()
             continue
@@ -96,10 +96,10 @@ def find_files(root: str, pattern: str | None = None, max_depth: int = 6) -> lis
                 continue
             if pattern:
                 pat_low = pattern.lower()
-                if pat_low not in f.lower() and pat_low not in dirpath.lower():
+                if pat_low not in f.lower() and pat_low not in dir_path.lower():
                     continue
  
-            results.append(str(Path(dirpath) / f))
+            results.append(str(dirpath / f))
 
     return results
 

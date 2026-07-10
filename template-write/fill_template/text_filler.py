@@ -73,8 +73,8 @@ def _needs_bom() -> bool:
 
 def _replace_all(text: str, content_map: dict[str, str], pattern: Pattern[str]) -> str:
     """将 text 中所有占位符替换为 content_map 中的值。"""
-    def _replacer(match: Match[str]) -> str:
+    def replacer(match: Match[str]) -> str:
         name = match.group(1)
         return content_map.get(name, match.group(0))
 
-    return pattern.sub(_replacer, text)
+    return pattern.sub(replacer, text)

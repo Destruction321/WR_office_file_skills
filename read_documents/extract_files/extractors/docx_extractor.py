@@ -137,34 +137,34 @@ def _extract_docx_body_ordered(doc, lines: list[str], style_count: dict[str, int
     """
     from docx.oxml.ns import qn
 
-    def _text(elem) -> str:
+    def text(elem) -> str:
         """收集 elem 内所有 w:t 节点文本。"""
         return ''.join(t.text or '' for t in elem.iter(qn('w:t')))
 
     body = doc.element.body
     for child in body:
         if child.tag == qn('w:p'):
-            text = _text(child).strip()
-            if not text:
+            texts = text(child).strip()
+            if not texts:
                 continue
             # 用多种方式检测标题级别，优先级：
             # 1. detect_chinese_heading 最准确（"实验七"=1、"实验目的"=2）
             # 2. 自定义样式推断（a4 -> 2，与真实级别对比后可能高估或低估）
             # 取最小值（更高级别）作为最终级别
-            heading_level = detect_chinese_heading(text)
+            heading_level = detect_chinese_heading(texts)
             style_level = _get_heading_style_level(child, style_count)
             if style_level is not None and (heading_level is None or style_level < heading_level):
                 heading_level = style_level
             if heading_level is not None:
-                lines.append(f'{"#" * min(heading_level, 6)} {text}')
+                lines.append(f'{"#" * min(heading_level, 6)} {texts}')
             else:
-                lines.append(text)
+                lines.append(texts)
 
         elif child.tag == qn('w:tbl'):
             lines.append('')
             for row_elem in child.iter(qn('w:tr')):
                 cells = [
-                    _text(tc).strip().replace('\n', ' ').replace('\r', '')
+                    text(tc).strip().replace('\n', ' ').replace('\r', '')
                     for tc in row_elem.iter(qn('w:tc'))
                 ]
                 if any(c for c in cells):

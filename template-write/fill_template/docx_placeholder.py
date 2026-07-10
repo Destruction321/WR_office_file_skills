@@ -70,20 +70,21 @@ def _fill_paragraph(para: Any, content_map: dict[str, str], pattern: Pattern[str
     if not pattern.search(full_text):
         return
 
-    if _has_multi_run_match(para.runs, full_text, pattern):
-        runs = para.runs
-        if not runs:
-            return
-
-        first_run = runs[0]
-        merged_text = _replace_all(full_text, content_map, pattern)
-        first_run.text = merged_text
-        
-        for run in runs[1:]:
-            run.text = ''
-    else:
+    if not _has_multi_run_match(para.runs, full_text, pattern):
         for run in para.runs:
             run.text = _replace_all(run.text, content_map, pattern)
+        return
+    
+    runs = para.runs
+    if not runs:
+        return
+
+    first_run = runs[0]
+    merged_text = _replace_all(full_text, content_map, pattern)
+    first_run.text = merged_text
+    
+    for run in runs[1:]:
+        run.text = ''
 
 
 def _has_multi_run_match(runs: Any, full_text: str, pattern: Pattern[str]) -> bool:
@@ -115,8 +116,8 @@ def _has_multi_run_match(runs: Any, full_text: str, pattern: Pattern[str]) -> bo
 
 def _replace_all(text: str, content_map: dict[str, str], pattern: Pattern[str]) -> str:
     """将 text 中所有占位符替换为 content_map 中的值。"""
-    def _replacer(match: Match[str]) -> str:
+    def replacer(match: Match[str]) -> str:
         name = match.group(1)
         return content_map.get(name, match.group(0))
 
-    return pattern.sub(_replacer, text)
+    return pattern.sub(replacer, text)

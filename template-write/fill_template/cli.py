@@ -5,7 +5,9 @@ from pathlib import Path
 from shutil import copy2
 from sys import exit, stderr
 
+from .docx_section_filler import scan_docx, fill_docx_sections
 from .filler import fill_template
+from .md_parser import parse_sections_md
 
 
 def main() -> None:
@@ -56,7 +58,6 @@ def main() -> None:
 
     # --- 扫描模式 ---
     if args.scan:
-        from .docx_section_filler import scan_docx
         scan_docx(template)
         return
 
@@ -70,16 +71,11 @@ def main() -> None:
 
     # --- 节级填充模式 ---
     if args.section_data_file:
-        from .docx_section_filler import fill_docx_sections
-        from .md_parser import parse_sections_md
-
         section_path = Path(args.section_data_file)
 
         # 按后缀自动判断格式：.md -> Markdown，.json -> JSON
         if section_path.suffix.lower() == '.md':
-            sections: dict = parse_sections_md(
-                section_path.read_text(encoding='utf-8')
-            )
+            sections = parse_sections_md(section_path.read_text(encoding='utf-8'))
         else:
             with open(section_path, 'r', encoding='utf-8') as f:
                 sections = load(f)

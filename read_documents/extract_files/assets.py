@@ -188,10 +188,10 @@ def _try_decompose_ole(out_path: Path, assets_dir: Path, cat: str, result: dict[
             if ole_path is None:
                 result['embeddings'].append(ole_desc)
             else:
-                result['embeddings'].append(f'  └─ OLE分解: {Path(ole_path).name} ({ole_desc})')
+                result['embeddings'].append(f'  L OLE分解: {Path(ole_path).name} ({ole_desc})')
     
     except Exception:
-        result['embeddings'].append('  └─ OLE分解失败')
+        result['embeddings'].append('  L OLE分解失败')
 
 
 def _extract_page_images(doc, page_idx: int, img_dir: Path, result: dict[str, list[str]]) -> None:

@@ -140,7 +140,7 @@ def _extract_nested_zip(out_path: Path,
                         member_path.write_bytes(z.read(name, pwd=b''))
                         extracted.append((str(member_path), f'加密条目(内容已加密): {safe_name}'))
                     except RuntimeError:
-                        extracted.append((None, f'  └─ {name} (加密条目，原ZIP已保留)'))
+                        extracted.append((None, f'  L {name} (加密条目，原ZIP已保留)'))
                     continue
 
                 with z.open(name) as src:
@@ -151,9 +151,9 @@ def _extract_nested_zip(out_path: Path,
 
     except RuntimeError as e:
         if 'password' in str(e).lower() or 'encrypted' in str(e).lower():
-            extracted.append((None, f'  └─ ZIP包含加密条目，原文件已保留: {out_path}'))
+            extracted.append((None, f'  L ZIP包含加密条目，原文件已保留: {out_path}'))
         else:
-            extracted.append((None, f'  └─ ZIP提取错误: {e}'))
+            extracted.append((None, f'  L ZIP提取错误: {e}'))
     
     except Exception as e:
-        extracted.append((None, f'  └─ ZIP提取错误: {e}'))
+        extracted.append((None, f'  L ZIP提取错误: {e}'))

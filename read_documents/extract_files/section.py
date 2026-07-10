@@ -53,7 +53,7 @@ def filter_section(lines: list[str], section: str) -> list[str]:
         section (str): 要匹配的小节关键字。
 
     Returns:
-        list[str]: 仅包含匹配小节的行。无匹配时返回 [未找到...] 单行列表。
+        title_lines (list[str]): 仅包含匹配小节的行。无匹配时返回 [未找到...] 单行列表。
     """
     if not section:
         return lines
