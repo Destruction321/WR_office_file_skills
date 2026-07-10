@@ -40,11 +40,11 @@ The ONLY exception: the package itself fails to import (`ModuleNotFoundError` th
 
 ## Core principle
 
-**Claude is the brain, the tool is the hands.**
+**opencode is the brain, the tool is the hands.**
 
-- Claude reads the template, understands the structure, decides what to fill and where.
+- opencode reads the template, understands the structure, decides what to fill and where.
 - The tool (`python -m fill_template`) does only mechanical operations: locate, clear, insert, verify.
-- If the tool can't find a heading, Claude adjusts the parameters — the tool never guesses.
+- If the tool can't find a heading, opencode adjusts the parameters — the tool never guesses.
 
 ## Supported formats
 
@@ -59,7 +59,7 @@ The ONLY exception: the package itself fails to import (`ModuleNotFoundError` th
 **Always start with `--scan`.** This shows the heading structure and custom styles — everything you need to fill correctly. Do NOT probe paragraph indices with inline scripts.
 
 ```bash
-cd ~/.claude/skills/template-write && python -m fill_template \
+cd ~/.config/opencode/skills/template-write && python -m fill_template \
   --template "<TEMPLATE_PATH>" --scan
 ```
 
@@ -88,7 +88,7 @@ Both modes use: `--template <ORIGINAL> --output <NEW_FILE>`. The tool **copies a
 When the template has `{{name}}` style placeholders:
 
 ```bash
-cd ~/.claude/skills/template-write && python -m fill_template \
+cd ~/.config/opencode/skills/template-write && python -m fill_template \
   --template "<TEMPLATE_PATH>" \
   --output "<OUTPUT_PATH>" \
   --set name=张三 --set date="2025年3月"
@@ -97,7 +97,7 @@ cd ~/.claude/skills/template-write && python -m fill_template \
 Or with a JSON file:
 
 ```bash
-cd ~/.claude/skills/template-write && python -m fill_template \
+cd ~/.config/opencode/skills/template-write && python -m fill_template \
   --template "<TEMPLATE_PATH>" \
   --output "<OUTPUT_PATH>" \
   --data-file content.json
@@ -109,7 +109,7 @@ cd ~/.claude/skills/template-write && python -m fill_template \
 
 When the template has empty sections under headings needing full content (paragraphs + images).
 
-**3a.** Write content as a Markdown file — this is where Claude's intelligence goes:
+**3a.** Write content as a Markdown file — this is where opencode's intelligence goes:
 
 > **Formatting rules:**
 >
@@ -133,7 +133,7 @@ When the template has empty sections under headings needing full content (paragr
 **3b.** Dry-run first (verifies all headings can be located, no file changes):
 
 ```bash
-cd ~/.claude/skills/template-write && python -m fill_template \
+cd ~/.config/opencode/skills/template-write && python -m fill_template \
   --template "<TEMPLATE_PATH>" \
   --output "<OUTPUT_PATH>" \
   --section-data-file "<TEMPLATE_DIR>/temp/sections.md" \
@@ -144,7 +144,7 @@ cd ~/.claude/skills/template-write && python -m fill_template \
 **3c.** Fill for real (add `--force` if the dry-run already created the output):
 
 ```bash
-cd ~/.claude/skills/template-write && python -m fill_template \
+cd ~/.config/opencode/skills/template-write && python -m fill_template \
   --template "<TEMPLATE_PATH>" \
   --output "<OUTPUT_PATH>" \
   --section-data-file "<TEMPLATE_DIR>/temp/sections.md" \

@@ -35,10 +35,10 @@ That path reliably produces reversed content, wrong styles, and missing images. 
 
 ---
 
-All files live under `~/.claude/skills/read_documents/`. Invoke via:
+All files live under `~/.config/opencode/skills/read_documents/`. Invoke via:
 
 ```bash
-_P="$(pwd)" && cd ~/.claude/skills/read_documents && python -m extract_files \
+_P="$(pwd)" && cd ~/.config/opencode/skills/read_documents && python -m extract_files \
   --paths-file "$_P/temp/tmp_targets.txt"
 ```
 
@@ -74,7 +74,7 @@ Use `--section KEYWORD` to extract only matching sections — **saves output tok
 | `.xlsx` / `.xls` | Sheet markers whose name/content matches                                  |
 
 ```bash
-_P="$(pwd)" && cd ~/.claude/skills/read_documents && python -m extract_files \
+_P="$(pwd)" && cd ~/.config/opencode/skills/read_documents && python -m extract_files \
   --paths-file "$_P/temp/tmp_targets.txt" \
   --section "<KEYWORD>"
 ```
@@ -102,7 +102,7 @@ _P="$(pwd)" && cd ~/.claude/skills/read_documents && python -m extract_files \
 When you need to **find** files by keyword. `--root` must be ASCII-safe; Chinese matching via `--glob`:
 
 ```bash
-_P="$(pwd)" && cd ~/.claude/skills/read_documents && python -m extract_files \
+_P="$(pwd)" && cd ~/.config/opencode/skills/read_documents && python -m extract_files \
   --root "<ASCII-safe ancestor>" \
   --glob "<Chinese keyword>"
 ```
@@ -124,7 +124,7 @@ Content:
 > Write the paths file in the project directory's **temp/** subdirectory.
 
 ```bash
-_P="$(pwd)" && cd ~/.claude/skills/read_documents && python -m extract_files \
+_P="$(pwd)" && cd ~/.config/opencode/skills/read_documents && python -m extract_files \
   --paths-file "$_P/temp/tmp_targets.txt"
 ```
 

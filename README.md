@@ -1,6 +1,6 @@
-# Claude Skills
+# OpenCode Skills
 
-Claude Code 技能集合 —— 增强 AI 对文档文件的读写能力。
+OpenCode 技能集合 —— 增强 AI 对文档文件的读写能力。
 
 ~~没啥大用，孩子不懂事写着玩的（~~
 
@@ -59,8 +59,8 @@ Claude Code 技能集合 —— 增强 AI 对文档文件的读写能力。
 ## 安装
 
 ```bash
-# 克隆到 Claude Code 技能目录
-git clone https://github.com/Destruction321/WR_office_file_skills.git ~/.claude/skills
+# 克隆到 opencode 技能目录
+git clone https://github.com/Destruction321/WR_office_file_skills.git ~/.config/opencode/skills
 
 # 安装全部依赖（如需）
 pip install python-docx python-pptx pdfplumber PyMuPDF openpyxl chardet olefile xlrd
@@ -73,9 +73,9 @@ pip install python-docx python-pptx pdfplumber PyMuPDF openpyxl chardet olefile 
 ## 项目结构
 
 ```txt
-~/.claude/skills/
+~/.config/opencode/skills/
 ├── README.md                    # 本文件 — 项目说明
-├── CLAUDE.md                    # 项目级 AI 指引（测试规则等）
+├── AGENTS.md                    # 项目级 AI 指引（测试规则等）
 ├── .gitignore
 ├── read_documents/              # 文档读取技能
 │    ├── SKILL.md                 # 给 AI 的调用指引

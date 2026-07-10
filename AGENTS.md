@@ -1,6 +1,6 @@
 # Skills 项目说明
 
-本目录包含两个 Claude Code skills：`read_documents`（读取文档）和 `template-write`（按模板填写文档）。
+本目录包含两个 opencode skills：`read_documents`（读取文档）和 `template-write`（按模板填写文档）。
 
 ## 测试规则
 
