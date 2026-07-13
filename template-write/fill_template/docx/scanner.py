@@ -2,10 +2,8 @@
 # docx 模板扫描器 — 结构分析与样式提示。
 
 - `scan_docx` 调用的内部工具：收集段落、识别标题、空节检测、打印结构与样式提示。
-- XML 工具 `_get_style_name` / `_text_of` 也被 `docx_section_filler` 的定位函数使用。
+- XML 工具 `get_style_name` / `text_of` 也被 `section_filler` 的定位函数使用。
 """
-from pathlib import Path
-
 
 _BODY_STYLE_NAMES = frozenset({
     'normal', '正文', '默认段落字体', 'body text', 'bodytext',
@@ -16,7 +14,20 @@ _BODY_STYLE_NAMES = frozenset({
 
 
 def collect_paragraphs(body, qn) -> tuple[list[tuple[str, str]], dict[str, int], dict[str, list[str]]]:
-    """收集段落信息、样式计数、每样式文本列表（用于长度/标题判断）。"""
+    """
+    ## 收集段落信息、样式计数、每样式文本列表（用于长度/标题判断）。
+    
+    Args:
+        body: docx.Document.body
+        qn: docx.oxml.ns.qn 函数
+        
+    Returns:
+        (all_paras, style_counts, style_texts)\
+        (tuple[list[tuple[str, str]],dict[str, int], dict[str, list[str]]]):
+        1. **all_paras** (list[tuple[str, str]]): (style, text) 段落列表，按文档顺序。
+        2. **style_counts** (dict[str, int]): 样式名 -> 出现次数。
+        3. **style_texts** (dict[str, list[str]]): 样式名 -> 段落文本列表。
+    """
     all_paras: list[tuple[str, str]] = []  # (style, text)
     style_counts: dict[str, int] = {}
     style_texts: dict[str, list[str]] = {}
@@ -38,10 +49,19 @@ def identify_headings(all_paras: list[tuple[str, str]],
                       style_counts: dict[str, int],
                       style_texts: dict[str, list[str]]) -> tuple[list[tuple[str, str]], set[str]]:
     """
-    识别标题段落：Word 内置 Heading 或「短文本 + 高频」的自定义样式
-    
-    关键：正文样式（如 a8）的段落较长，标题样式（如 a4）的段落较短 ——
+    ## 识别标题段落：Word 内置 Heading 或「短文本 + 高频」的自定义样式
+    - 关键：正文样式（如 a8）的段落较长，标题样式（如 a4）的段落较短 ——
     用平均文本长度区分，避免把正文样式误判为标题。
+    
+    Args:
+        all_paras (list[tuple[str, str]]): (style, text) 段落列表，按文档顺序。
+        style_counts (dict[str, int]): 样式名 -> 出现次数。
+        style_texts (dict[str, list[str]]): 样式名 -> 段落文本列表。
+        
+    Returns:
+        (headings, heading_styles) (tuple[list[tuple[str, str]], set[str]]):
+        1. **headings** (list[tuple[str, str]]): (style, text) 的标题段落列表，按文档顺序。
+        2. **heading_styles** (set[str]): 被识别为标题的自定义样式名集合（不含内置 Heading 样式）。
     """
     headings: list[tuple[str, str]] = []  # (style, text)
     heading_styles: set[str] = set()
@@ -52,7 +72,7 @@ def identify_headings(all_paras: list[tuple[str, str]],
         if style and style.lower().startswith("heading"):
             headings.append((style, text))
         
-        elif style and is_custom_heading_style(style, style_counts, style_texts):
+        elif style and _is_custom_heading_style(style, style_counts, style_texts):
             headings.append((style, text))
             heading_styles.add(style)
 
@@ -62,12 +82,20 @@ def identify_headings(all_paras: list[tuple[str, str]],
 def find_empty_sections(all_paras: list[tuple[str, str]],
                         headings: list[tuple[str, str]]) -> set[int]:
     """
-    检测哪些标题节为空（标题后无任何非空正文）。
+    ## 检测哪些标题节为空（标题后无任何非空正文）。
 
-    **用指针顺序匹配**：按文档顺序遍历段落，
-    仅当段落文本等于下一个待匹配标题的文本时才推进指针，
-    避免重复标题或正文恰好与标题同名时误判；
-    标题之间的非空正文标记当前标题非空。
+    **用指针顺序匹配**：
+    - 按文档顺序遍历段落;
+    - 仅当段落文本等于下一个待匹配标题的文本时才推进指针;
+    - 避免重复标题或正文恰好与标题同名时误判；
+    - 标题之间的非空正文标记当前标题非空。
+    
+    Args:
+        all_paras (list[tuple[str, str]]): (style, text) 段落列表，按文档顺序。
+        headings (list[tuple[str, str]]): (style, text) 的标题段落列表，按文档顺序。
+        
+    Returns:
+        empty_set (set[int]): 空节标题的索引集合（在 headings 中的索引）。
     """
     empty_set = set(range(len(headings)))
     ptr = 0       # 指向下一个待匹配的标题
@@ -91,7 +119,16 @@ def find_empty_sections(all_paras: list[tuple[str, str]],
 
 
 def print_structure(headings: list[tuple[str, str]], empty_set: set[int]) -> int:
-    """打印标题结构，标注空节，返回总标题数。"""
+    """
+    ## 打印标题结构，标注空节，返回总标题数。
+    
+    Args:
+        headings (list[tuple[str, str]]): (style, text) 的标题段落列表，按文档顺序。
+        empty_set (set[int]): 空节标题的索引集合（在 headings 中的索引）。
+    
+    Returns:
+        total (int): 标题总数。
+    """
     print("Document structure:")
     style_to_depth: dict[str, int] = {}
     if headings:
@@ -116,7 +153,7 @@ def print_structure(headings: list[tuple[str, str]], empty_set: set[int]) -> int
             empty_tag = " [EMPTY]" if hi in empty_set and d > 0 else ""
             print(f"  {indent}[{style}] {text}{empty_tag}")
 
-    return count_total_headings(headings, style_to_depth, empty_set)
+    return _count_total_headings(headings, style_to_depth, empty_set)
 
 
 def print_style_hints(heading_styles: set[str],
@@ -124,10 +161,17 @@ def print_style_hints(heading_styles: set[str],
                       style_texts: dict[str, list[str]],
                       total: int) -> None:
     """
-    样式提示：排除图片标题样式（非节边界），按出现次数排序取最频繁的图片标题样式
-    （如 a3，段落多以"图"/"Figure"开头）不是节边界，不应作为 --heading-style
+    ## 样式提示
+    - 排除图片标题样式（非节边界），按出现次数排序取最频繁的图片标题样式
+    （如 a3，段落多以"图"/"Figure"开头）不是节边界，不应作为 `--heading-style`
+    
+    Args:
+        heading_styles (set[str]): 被识别为标题的自定义样式名集合（不含内置 Heading 样式）。
+        style_counts (dict[str, int]): 样式名 -> 出现次数。
+        style_texts (dict[str, list[str]]): 样式名 -> 段落文本列表。
+        total (int): 标题总数。
     """
-    boundary_styles = [s for s in heading_styles if not is_caption_style(s, style_texts)]
+    boundary_styles = [s for s in heading_styles if not _is_caption_style(s, style_texts)]
     if boundary_styles:
         ranked = sorted(boundary_styles, key=lambda s: style_counts.get(s, 0), reverse=True)
         styles_str = ", ".join(sorted(heading_styles))
@@ -149,7 +193,16 @@ def print_style_hints(heading_styles: set[str],
 
 
 def get_style_name(p_elem, qn) -> str:
-    """提取段落的 w:pStyle 值，无样式时返回空字符串。"""
+    """
+    ## 提取段落的 `w:pStyle 值`，无样式时返回空字符串。
+    
+    Args:
+        p_elem: `w:p` 元素
+        qn: docx.oxml.ns.qn 函数
+        
+    Returns:
+        style (str): 段落样式名，未设置时返回空字符串。
+    """
     pPr = p_elem.find(qn("w:pPr"))
     if pPr is None:
         return ""
@@ -162,17 +215,35 @@ def get_style_name(p_elem, qn) -> str:
 
 
 def text_of(p_elem, qn) -> str:
-    """收集 w:p 元素内所有 w:t 文本。"""
+    """
+    ## 收集 `w:p` 元素内所有 `w:t` 文本。
+    
+    Args:
+        p_elem: `w:p` 元素
+        qn: docx.oxml.ns.qn 函数
+        
+    Returns:
+        text (str): 段落文本，未设置时返回空字符串。
+    """
     return "".join(t.text or "" for t in p_elem.iter(qn("w:t")))
 
 
-def is_custom_heading_style(style: str,
+def _is_custom_heading_style(style: str,
                             style_counts: dict[str, int],
                             style_texts: dict[str, list[str]]) -> bool:
-    """判断自定义样式是否为标题样式（而非正文样式）。
+    """
+    ## 判断自定义样式是否为标题样式（而非正文样式）。
 
-    判据：出现 ≥2 次、非已知正文样式名、且段落平均文本长度较短
+    - **判据**：出现 >= 2 次、非已知正文样式名、且段落平均文本长度较短
     （标题短、正文长）。阈值 60 字符可区分 a4 标题与 a8 正文。
+    
+    Args:
+        style (str): 样式名。
+        style_counts (dict[str, int]): 样式名 -> 出现次数。
+        style_texts (dict[str, list[str]]): 样式名 -> 段落文本列表。
+    
+    Returns:
+        is_custom (bool): 如果是自定义标题样式则返回 True，否则返回 False。
     """
     if style.lower() in _BODY_STYLE_NAMES:
         return False
@@ -187,10 +258,20 @@ def is_custom_heading_style(style: str,
     return avg_len <= 60
 
 
-def count_total_headings(headings: list[tuple[str, str]], 
+def _count_total_headings(headings: list[tuple[str, str]], 
                          style_to_depth: dict[str, int],
                          empty_set: set[int]) -> int:
-    """统计标题数量"""
+    """
+    ## 统计标题数量
+    
+    Args:
+        headings (list[tuple[str, str]]): (style, text) 的标题段落列表，按文档顺序。
+        style_to_depth (dict[str, int]): 样式名 -> 层级深度（0 为最高级）。
+        empty_set (set[int]): 空节标题的索引集合（在 headings 中的索引）。
+        
+    Returns:
+        total (int): 标题总数。
+    """
     total = len(headings)
     if headings and style_to_depth:
         min_d = min(style_to_depth.values())
@@ -205,10 +286,17 @@ def count_total_headings(headings: list[tuple[str, str]],
     return total
 
 
-def is_caption_style(style: str, style_texts: dict[str, list[str]]) -> bool:
-    """判断样式是否为图片标题样式（段落多以"图"/"Figure"/"Fig"开头）。
-
-    图片标题不是节边界，不应作为 --heading-style 建议。
+def _is_caption_style(style: str, style_texts: dict[str, list[str]]) -> bool:
+    """
+    ## 判断样式是否为图片标题样式（段落多以"图"/"Figure"/"Fig"开头）。
+    - 图片标题不是节边界，不应作为 `--heading-style` 建议。
+    
+    Args:
+        style (str): 样式名。
+        style_texts (dict[str, list[str]]): 样式名 -> 段落文本列表。
+        
+    Returns:
+        is_caption (bool): 如果是图片标题样式则返回 True，否则返回 False。
     """
     texts = style_texts.get(style, [])
     if not texts:

@@ -5,7 +5,7 @@ from pathlib import Path
 from shutil import copy2
 from sys import exit, stderr
 
-from .docx_section_filler import scan_docx, fill_docx_sections
+from .docx import scan_docx, fill_docx_sections
 from .filler import fill_template
 from .md_parser import parse_sections_md
 
