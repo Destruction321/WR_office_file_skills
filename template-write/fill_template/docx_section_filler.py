@@ -49,13 +49,8 @@ def scan_docx(doc_path: Path) -> None:
     Args:
         doc_path (Path): `.docx` 文件路径。
     """
-    try:
-        Document = ensure_import("python-docx", "docx", attr="Document")
-        qn = ensure_import("python-docx", "docx.oxml.ns", attr="qn")
-    except ImportError as e:
-        print(f'[Error: {e}]', file=stderr)
-        return
-
+    Document = ensure_import("python-docx", "docx", attr="Document")
+    qn = ensure_import("python-docx", "docx.oxml.ns", attr="qn")
     body = Document(str(doc_path)).element.body
 
     # 收集段落信息 & 样式计数 & 每样式文本列表（用于长度/标题判断）
@@ -170,14 +165,9 @@ def fill_docx_sections(doc_path: Path,
     Returns:
         int: 成功填充的节数量。
     """
-    try:
-        Document = ensure_import("python-docx", "docx", attr="Document")
-        qn = ensure_import("python-docx", "docx.oxml.ns", attr="qn")
-        Inches = ensure_import("python-docx", "docx.shared", attr="Inches")
-    except ImportError as e:
-        print(f'[Error: {e}]', file=stderr)
-        return 0
-
+    Document = ensure_import("python-docx", "docx", attr="Document")
+    qn = ensure_import("python-docx", "docx.oxml.ns", attr="qn")
+    Inches = ensure_import("python-docx", "docx.shared", attr="Inches")
     doc = Document(str(doc_path))
     body = doc.element.body
     hs_lower = heading_style.lower() if heading_style else None
