@@ -14,6 +14,7 @@
 2. Word 内置 Heading 样式的段落 -> 节边界
 """
 
+from dataclasses import dataclass
 from pathlib import Path
 from sys import stderr
 from typing import Any
@@ -29,6 +30,12 @@ _BODY_STYLE_NAMES = frozenset({
     'table grid', 'list paragraph',
 })
 
+@dataclass
+class _LocateContext:
+    children: list[Any]
+    qn: Any
+    hs_lower: str | None = None
+
 
 # ===================================================================
 #  公开 API
@@ -42,20 +49,22 @@ def scan_docx(doc_path: Path) -> None:
     Args:
         doc_path (Path): `.docx` 文件路径。
     """
-    mod = ensure_import("python-docx", "docx")
-    Document = mod.Document
-    from docx.oxml.ns import qn
+    try:
+        Document = ensure_import("python-docx", "docx", attr="Document")
+        qn = ensure_import("python-docx", "docx.oxml.ns", attr="qn")
+    except ImportError as e:
+        print(f'[Error: {e}]', file=stderr)
+        return
 
-    doc = Document(str(doc_path))
-    body = doc.element.body
+    body = Document(str(doc_path)).element.body
 
     # 收集段落信息 & 样式计数 & 每样式文本列表（用于长度/标题判断）
     all_paras: list[tuple[str, str]] = []  # (style, text)
     style_counts: dict[str, int] = {}
     style_texts: dict[str, list[str]] = {}
     for p_elem in body.iter(qn("w:p")):
-        style = _get_style_name(p_elem)
-        text = _text_of(p_elem).strip()
+        style = _get_style_name(p_elem, qn)
+        text = _text_of(p_elem, qn).strip()
         all_paras.append((style, text))
         if not style or not text:
             continue
@@ -144,7 +153,7 @@ def scan_docx(doc_path: Path) -> None:
 
 
 def fill_docx_sections(doc_path: Path,
-                       sections: dict[str, list[dict[str, Any]]], *,
+                       sections: dict[str, list[dict[str, Any]]],*,
                        mode: str = "replace",
                        heading_style: str | None = None,
                        dry_run: bool = False) -> int:
@@ -161,21 +170,27 @@ def fill_docx_sections(doc_path: Path,
     Returns:
         int: 成功填充的节数量。
     """
-    mod = ensure_import("python-docx", "docx")
-    Document = mod.Document
+    try:
+        Document = ensure_import("python-docx", "docx", attr="Document")
+        qn = ensure_import("python-docx", "docx.oxml.ns", attr="qn")
+        Inches = ensure_import("python-docx", "docx.shared", attr="Inches")
+    except ImportError as e:
+        print(f'[Error: {e}]', file=stderr)
+        return 0
 
     doc = Document(str(doc_path))
     body = doc.element.body
     hs_lower = heading_style.lower() if heading_style else None
+    locate_ctx = _LocateContext(children=list(body), qn=qn, hs_lower=hs_lower)
 
     filled_count = 0
     missed: list[str] = []
     filled_summary: list[tuple[str, int, int]] = []
 
     for heading_text, items in sections.items():
-        children = list(body)
+        locate_ctx.children = list(body)
 
-        loc = _locate_section(children, heading_text, hs_lower=hs_lower)
+        loc = _locate_section(locate_ctx, heading_text)
         if loc is None:
             missed.append(heading_text)
             continue
@@ -194,16 +209,15 @@ def fill_docx_sections(doc_path: Path,
 
         # 清除旧内容（replace 模式）—— 清除后索引移位，需重新定位标题作锚点
         if mode == "replace":
-            _remove_elements_between(body, children, heading_idx, end_idx)
-            children = list(body)
-            heading_idx = _find_heading_index_scoped(children, heading_text)
+            _remove_elements_between(body, locate_ctx.children, heading_idx, end_idx)
+            heading_idx = _find_heading_index_scoped(locate_ctx, heading_text)
             if heading_idx is None:
                 missed.append(heading_text)
                 continue
 
         # 插入新内容
-        anchor = children[heading_idx]
-        para_count, img_count = _insert_items(doc, anchor, items)
+        anchor = locate_ctx.children[heading_idx]
+        para_count, img_count = _insert_items(doc, anchor, items, Inches=Inches)
 
         filled_count += 1
         filled_summary.append((heading_text, para_count, img_count))
@@ -228,6 +242,263 @@ def fill_docx_sections(doc_path: Path,
     return filled_count
 
 
+# ===================================================================
+#  定位
+# ===================================================================
+
+def _locate_section(locate_ctx: _LocateContext, heading_text: str) -> tuple[int, int | None] | None:
+    """
+    定位 (heading_idx, end_idx)：先查标题索引，再以该标题样式算节边界。
+
+    全局定位："标题文本"；限定定位："父标题 / 子标题"。
+    标题索引查找共用 `_find_heading_index_scoped`，与 replace 后重定位一致。
+    """
+    heading_idx = _find_heading_index_scoped(locate_ctx, heading_text)
+    if heading_idx is None:
+        return None
+
+    end_idx = _find_style_boundary(
+        locate_ctx,
+        heading_idx,
+        _get_style_name(locate_ctx.children[heading_idx], locate_ctx.qn)
+    )
+    return heading_idx, end_idx
+
+
+def _find_heading_index_scoped(locate_ctx: _LocateContext, heading_text: str) -> int | None:
+    """按标题文本查找段落索引，支持限定定位语法。
+
+    - 全局："标题文本" -> 全文找第一个匹配段落。
+    - 限定："父标题 / 子标题" -> 先找父标题，再在其后找子标题
+      （不限制 parent_end，因父子可能同样式，样式边界无法区分）。
+
+    Returns:
+        int | None: 标题段落在 children 中的索引，未找到返回 None。
+    """
+    parent_text, sep, child_text = heading_text.partition(_SCOPE_SEP)
+    if not sep:
+        return _find_heading_index(locate_ctx, parent_text)
+
+    parent_idx = _find_heading_index(locate_ctx, parent_text)
+    if parent_idx is None:
+        return None
+    return _find_heading_index(locate_ctx, child_text.strip(), start=parent_idx + 1)
+
+
+def _find_heading_index(locate_ctx: _LocateContext, text: str, start: int = 0) -> int | None:
+    """在 children[start:len(children)] 范围内找到包含 text 的段落，返回索引。大小写不敏感。"""
+    text_lower = text.strip().lower()
+    end = len(locate_ctx.children)
+    for i in range(start, end):
+        child = locate_ctx.children[i]
+        if child.tag != locate_ctx.qn("w:p"):
+            continue
+        
+        if text_lower in _text_of(child, locate_ctx.qn).lower():
+            return i
+    
+    return None
+
+
+def _find_style_boundary(locate_ctx: _LocateContext,
+                         heading_idx: int,
+                         heading_style: str) -> int | None:
+    """找到 heading_idx 之后第一个同级标题段落，返回其索引。
+
+    边界判定：
+    - 与目标标题相同样式名的段落 -> 边界
+    - 用户指定 --heading-style 的段落 -> 边界
+    - Word 内置 Heading 样式的段落 -> 边界（当原标题不是内置样式时）
+    """
+    search_end = len(locate_ctx.children)
+    hs_lower_local = heading_style.lower() if heading_style else ""
+    is_builtin = hs_lower_local.startswith("heading")
+
+    for i in range(heading_idx + 1, search_end):
+        child = locate_ctx.children[i]
+        if child.tag != locate_ctx.qn("w:p"):
+            continue
+
+        style_lower = _get_style_name(child, locate_ctx.qn).lower()
+
+        # 相同样式名 -> 同级标题 -> 边界
+        if hs_lower_local and style_lower == hs_lower_local:
+            return i
+        
+        # 用户指定的 heading_style -> 边界
+        if locate_ctx.hs_lower and style_lower == locate_ctx.hs_lower:
+            return i
+        
+        # Word 内置 Heading -> 边界（当原样式不是内置样式时）
+        if not is_builtin and style_lower.startswith("heading"):
+            return i
+
+    return None
+
+
+# ===================================================================
+#  元素操作
+# ===================================================================
+
+def _remove_elements_between(body, children, start: int, end: int | None):
+    """删除 body 中 (start, end) 之间的所有子元素。"""
+    actual_end = end if end is not None else len(children)
+    for i in range(actual_end - 1, start, -1):
+        body.remove(children[i])
+
+
+def _insert_items(doc, anchor, items: list[dict[str, Any]], *, Inches) -> tuple[int, int]:
+    """
+    将内容项逐个构建为段落，用 addnext 链式插入到 anchor 之后。
+
+    - image 项走 `_build_image_para`，其余走 `_build_text_para`。
+    - 每次插入后把 anchor 前移到新段落，保证顺序与 items 一致。
+    """
+    para_count = 0
+    img_count = 0
+    for item in items:
+        if item.get("type") == "image":
+            p = _build_image_para(doc, item, Inches)
+            img_count += 1
+        
+        else:
+            p = _build_text_para(doc, item)
+            para_count += 1
+        anchor.addnext(p)
+        anchor = p
+    
+    return para_count, img_count
+
+
+def _build_image_para(doc, item: dict[str, Any], Inches):
+    """构建内嵌图片段落。"""
+    image_path = Path(item["path"])
+    if not image_path.exists():
+        p = doc.add_paragraph()
+        run = p.add_run()
+        run.text = f"[Image not found: {image_path.name}]"
+        run.bold = True
+        p._element.getparent().remove(p._element)
+        return p._element
+
+    width = item.get("width_inches", 5.5)
+    p = doc.add_paragraph()
+    run = p.add_run()
+    run.add_picture(str(image_path), width=Inches(width))
+    p._element.getparent().remove(p._element)
+    return p._element
+
+
+def _build_text_para(doc, item: dict[str, Any]):
+    """构建文本段落。支持 runs 格式（行内加粗/斜体）和旧 text/bold 格式。"""
+    p = doc.add_paragraph()
+
+    if "runs" in item:
+        for run_spec in item["runs"]:
+            run = p.add_run()
+            run.text = run_spec.get("text", "")
+            if run_spec.get("bold"):
+                run.bold = True
+            if run_spec.get("italic"):
+                run.italic = True
+    
+    else:
+        run = p.add_run()
+        run.text = item.get("text", "")
+        if item.get("bold"):
+            run.bold = True
+
+    p._element.getparent().remove(p._element)
+    return p._element
+
+
+# ===================================================================
+#  工具函数
+# ===================================================================
+
+def _get_style_name(p_elem, qn) -> str:
+    """提取段落的 w:pStyle 值，无样式时返回空字符串。"""
+    pPr = p_elem.find(qn("w:pPr"))
+    if pPr is None:
+        return ""
+    
+    pStyle = pPr.find(qn("w:pStyle"))
+    if pStyle is None:
+        return ""
+    
+    return pStyle.get(qn("w:val"), "")
+
+
+def _text_of(p_elem, qn) -> str:
+    """收集 w:p 元素内所有 w:t 文本。"""
+    return "".join(t.text or "" for t in p_elem.iter(qn("w:t")))
+
+
+def _is_custom_heading_style(style: str,
+                             style_counts: dict[str, int],
+                             style_texts: dict[str, list[str]]) -> bool:
+    """判断自定义样式是否为标题样式（而非正文样式）。
+
+    判据：出现 ≥2 次、非已知正文样式名、且段落平均文本长度较短
+    （标题短、正文长）。阈值 60 字符可区分 a4 标题与 a8 正文。
+    """
+    if style.lower() in _BODY_STYLE_NAMES:
+        return False
+    if style_counts.get(style, 0) < 2:
+        return False
+    
+    texts = style_texts.get(style, [])
+    if not texts:
+        return False
+    
+    avg_len = sum(len(t) for t in texts) / len(texts)
+    return avg_len <= 60
+
+
+def _find_empty_sections(all_paras: list[tuple[str, str]],
+                         headings: list[tuple[str, str]]) -> set[int]:
+    """
+    检测哪些标题节为空（标题后无任何非空正文）。
+
+    **用指针顺序匹配**：按文档顺序遍历段落,
+    仅当段落文本等于下一个待匹配标题的文本时才推进指针,
+    避免重复标题或正文恰好与标题同名时误判;
+    标题之间的非空正文标记当前标题非空。
+    """
+    empty_set = set(range(len(headings)))
+    ptr = 0       # 指向下一个待匹配的标题
+    current = -1  # 当前所在标题索引
+
+    for _, text in all_paras:
+        if not text:
+            continue
+        
+        # 段落文本等于下一个待匹配标题 -> 进入该标题
+        if ptr < len(headings) and text == headings[ptr][1]:
+            current = ptr
+            ptr += 1
+            continue
+        
+        # 非标题正文 -> 标记当前标题非空
+        if current >= 0:
+            empty_set.discard(current)
+
+    return empty_set
+
+
+def _is_caption_style(style: str, style_texts: dict[str, list[str]]) -> bool:
+    """判断样式是否为图片标题样式（段落多以"图"/"Figure"/"Fig"开头）。
+
+    图片标题不是节边界，不应作为 --heading-style 建议。
+    """
+    texts = style_texts.get(style, [])
+    if not texts:
+        return False
+    
+    caption_count = sum(1 for t in texts if t.startswith(("图", "Figure", "Fig")))
+    return caption_count / len(texts) > 0.5
+
+
 def _verify_filled(doc_path: Path,
                    filled_summary: list[tuple[str, int, int]],
                    sections: dict[str, list[dict[str, Any]]]) -> None:
@@ -235,8 +506,11 @@ def _verify_filled(doc_path: Path,
     if not filled_summary:
         return
 
-    mod = ensure_import("python-docx", "docx")
-    Document = mod.Document
+    try:
+        Document = ensure_import("python-docx", "docx", attr="Document")
+    except ImportError as e:
+        print(f'  [警告] 验证跳过: {e}', file=stderr)
+        return
     doc = Document(str(doc_path))
 
     # 收集所有节标题的子文本（去重后），用于段落匹配
@@ -289,271 +563,3 @@ def _verify_filled(doc_path: Path,
             if status == "OK" else "no content found"
         )
         print(f"  [{status}] '{heading_text}': {detail}")
-
-
-# ===================================================================
-#  定位
-# ===================================================================
-
-def _locate_section(children: list,
-                    heading_text: str, *,
-                    hs_lower: str | None = None) -> tuple[int, int | None] | None:
-    """定位 (heading_idx, end_idx)：先查标题索引，再以该标题样式算节边界。
-
-    全局定位："标题文本"；限定定位："父标题 / 子标题"。
-    标题索引查找共用 `_find_heading_index_scoped`，与 replace 后重定位一致。
-    """
-    heading_idx = _find_heading_index_scoped(children, heading_text)
-    if heading_idx is None:
-        return None
-
-    end_idx = _find_style_boundary(
-        children, heading_idx, _get_style_name(children[heading_idx]),
-        hs_lower=hs_lower,
-    )
-    return heading_idx, end_idx
-
-
-def _find_heading_index(children: list, text: str, *, start: int = 0, end: int | None = None) -> int | None:
-    """在 children[start:end] 范围内找到包含 text 的段落，返回索引。大小写不敏感。"""
-    from docx.oxml.ns import qn
-
-    text_lower = text.strip().lower()
-    search_end = end if end is not None else len(children)
-    for i in range(start, search_end):
-        child = children[i]
-        if child.tag != qn("w:p"):
-            continue
-        
-        if text_lower in _text_of(child).lower():
-            return i
-    
-    return None
-
-
-def _find_heading_index_scoped(children: list, heading_text: str) -> int | None:
-    """按标题文本查找段落索引，支持限定定位语法。
-
-    - 全局："标题文本" -> 全文找第一个匹配段落。
-    - 限定："父标题 / 子标题" -> 先找父标题，再在其后找子标题
-      （不限制 parent_end，因父子可能同样式，样式边界无法区分）。
-
-    Returns:
-        int | None: 标题段落在 children 中的索引，未找到返回 None。
-    """
-    parent_text, sep, child_text = heading_text.partition(_SCOPE_SEP)
-    if not sep:
-        return _find_heading_index(children, parent_text)
-
-    parent_idx = _find_heading_index(children, parent_text)
-    if parent_idx is None:
-        return None
-    return _find_heading_index(children, child_text.strip(), start=parent_idx + 1)
-
-
-def _find_style_boundary(children: list,
-                         heading_idx: int,
-                         heading_style: str, *,
-                         hs_lower: str | None = None,
-                         hard_end: int | None = None) -> int | None:
-    """找到 heading_idx 之后第一个同级标题段落，返回其索引。
-
-    边界判定：
-    - 与目标标题相同样式名的段落 -> 边界
-    - 用户指定 --heading-style 的段落 -> 边界
-    - Word 内置 Heading 样式的段落 -> 边界（当原标题不是内置样式时）
-    - hard_end 限制搜索范围（限定定位时不超过父节边界）
-    """
-    from docx.oxml.ns import qn
-
-    search_end = hard_end if hard_end is not None else len(children)
-    hs_lower_local = heading_style.lower() if heading_style else ""
-    is_builtin = hs_lower_local.startswith("heading")
-
-    for i in range(heading_idx + 1, search_end):
-        child = children[i]
-        if child.tag != qn("w:p"):
-            continue
-
-        style_lower = _get_style_name(child).lower()
-
-        # 相同样式名 -> 同级标题 -> 边界
-        if hs_lower_local and style_lower == hs_lower_local:
-            return i
-        
-        # 用户指定的 heading_style -> 边界
-        if hs_lower and style_lower == hs_lower:
-            return i
-        
-        # Word 内置 Heading -> 边界（当原样式不是内置样式时）
-        if not is_builtin and style_lower.startswith("heading"):
-            return i
-
-    return None
-
-
-# ===================================================================
-#  工具函数
-# ===================================================================
-
-def _text_of(p_elem) -> str:
-    """收集 w:p 元素内所有 w:t 文本。"""
-    from docx.oxml.ns import qn
-    return "".join(t.text or "" for t in p_elem.iter(qn("w:t")))
-
-
-def _find_empty_sections(all_paras: list[tuple[str, str]],
-                         headings: list[tuple[str, str]]) -> set[int]:
-    """
-    检测哪些标题节为空（标题后无任何非空正文）。
-
-    **用指针顺序匹配**：按文档顺序遍历段落,
-    仅当段落文本等于下一个待匹配标题的文本时才推进指针,
-    避免重复标题或正文恰好与标题同名时误判;
-    标题之间的非空正文标记当前标题非空。
-    """
-    empty_set = set(range(len(headings)))
-    ptr = 0       # 指向下一个待匹配的标题
-    current = -1  # 当前所在标题索引
-
-    for _, text in all_paras:
-        if not text:
-            continue
-        
-        # 段落文本等于下一个待匹配标题 -> 进入该标题
-        if ptr < len(headings) and text == headings[ptr][1]:
-            current = ptr
-            ptr += 1
-            continue
-        
-        # 非标题正文 -> 标记当前标题非空
-        if current >= 0:
-            empty_set.discard(current)
-
-    return empty_set
-
-
-def _is_custom_heading_style(style: str,
-                             style_counts: dict[str, int],
-                             style_texts: dict[str, list[str]]) -> bool:
-    """判断自定义样式是否为标题样式（而非正文样式）。
-
-    判据：出现 ≥2 次、非已知正文样式名、且段落平均文本长度较短
-    （标题短、正文长）。阈值 60 字符可区分 a4 标题与 a8 正文。
-    """
-    if style.lower() in _BODY_STYLE_NAMES:
-        return False
-    if style_counts.get(style, 0) < 2:
-        return False
-    
-    texts = style_texts.get(style, [])
-    if not texts:
-        return False
-    
-    avg_len = sum(len(t) for t in texts) / len(texts)
-    return avg_len <= 60
-
-
-def _is_caption_style(style: str, style_texts: dict[str, list[str]]) -> bool:
-    """判断样式是否为图片标题样式（段落多以"图"/"Figure"/"Fig"开头）。
-
-    图片标题不是节边界，不应作为 --heading-style 建议。
-    """
-    texts = style_texts.get(style, [])
-    if not texts:
-        return False
-    
-    caption_count = sum(1 for t in texts if t.startswith(("图", "Figure", "Fig")))
-    return caption_count / len(texts) > 0.5
-
-
-def _get_style_name(p_elem) -> str:
-    """提取段落的 w:pStyle 值，无样式时返回空字符串。"""
-    from docx.oxml.ns import qn
-    pPr = p_elem.find(qn("w:pPr"))
-    if pPr is None:
-        return ""
-    
-    pStyle = pPr.find(qn("w:pStyle"))
-    if pStyle is None:
-        return ""
-    
-    return pStyle.get(qn("w:val"), "")
-
-
-# ===================================================================
-#  元素操作
-# ===================================================================
-
-def _remove_elements_between(body, children, start: int, end: int | None):
-    """删除 body 中 (start, end) 之间的所有子元素。"""
-    actual_end = end if end is not None else len(children)
-    for i in range(actual_end - 1, start, -1):
-        body.remove(children[i])
-
-
-def _build_text_para(doc, item: dict[str, Any]):
-    """构建文本段落。支持 runs 格式（行内加粗/斜体）和旧 text/bold 格式。"""
-    p = doc.add_paragraph()
-
-    if "runs" in item:
-        for run_spec in item["runs"]:
-            run = p.add_run()
-            run.text = run_spec.get("text", "")
-            if run_spec.get("bold"):
-                run.bold = True
-            if run_spec.get("italic"):
-                run.italic = True
-    
-    else:
-        run = p.add_run()
-        run.text = item.get("text", "")
-        if item.get("bold"):
-            run.bold = True
-
-    p._element.getparent().remove(p._element)
-    return p._element
-
-
-def _build_image_para(doc, item: dict[str, Any]):
-    """构建内嵌图片段落。"""
-    from docx.shared import Inches
-
-    image_path = Path(item["path"])
-    if not image_path.exists():
-        p = doc.add_paragraph()
-        run = p.add_run()
-        run.text = f"[Image not found: {image_path.name}]"
-        run.bold = True
-        p._element.getparent().remove(p._element)
-        return p._element
-
-    width = item.get("width_inches", 5.5)
-    p = doc.add_paragraph()
-    run = p.add_run()
-    run.add_picture(str(image_path), width=Inches(width))
-    p._element.getparent().remove(p._element)
-    return p._element
-
-
-def _insert_items(doc, anchor, items: list[dict[str, Any]]) -> tuple[int, int]:
-    """
-    将内容项逐个构建为段落，用 addnext 链式插入到 anchor 之后。
-
-    - image 项走 `_build_image_para`，其余走 `_build_text_para`。
-    - 每次插入后把 anchor 前移到新段落，保证顺序与 items 一致。
-    """
-    para_count = 0
-    img_count = 0
-    for item in items:
-        if item.get("type") == "image":
-            p = _build_image_para(doc, item)
-            img_count += 1
-        
-        else:
-            p = _build_text_para(doc, item)
-            para_count += 1
-        anchor.addnext(p)
-        anchor = p
-    
-    return para_count, img_count

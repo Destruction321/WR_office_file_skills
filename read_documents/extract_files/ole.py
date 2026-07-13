@@ -30,7 +30,7 @@ def decompose_ole_object(filepath: Path, out_dir: Path) -> list[tuple[str | None
         return extracted
     
     try:
-        ole = OleFileIO(str(filepath))  # type: ignore[operator]
+        ole = OleFileIO(str(filepath))
 
         native_data: bytes | None = None
         for parts in ole.listdir():

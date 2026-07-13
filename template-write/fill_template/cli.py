@@ -94,7 +94,8 @@ def main() -> None:
         # dry-run 时对模板操作（不修改任何文件）；否则对输出文件操作
         target = template if args.dry_run else output
         count = fill_docx_sections(
-            target, sections, mode=args.section_mode,
+            target, sections,
+            mode=args.section_mode,
             heading_style=args.heading_style,
             dry_run=args.dry_run,
         )

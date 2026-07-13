@@ -27,8 +27,8 @@ def fill_docx(output_path: Path, content_map: dict[str, str], pattern: Pattern[s
         content_map (dict[str, str]): 占位符名称到替换文本的映射。
         pattern (Pattern[str]): 占位符正则，group(1) 为占位符名称。
     """
-    Document = ensure_import('python-docx', 'docx', attr='Document')  # type: ignore[assignment]
-    doc = Document(str(output_path))  # type: ignore[operator]
+    Document = ensure_import('python-docx', 'docx', attr='Document')
+    doc = Document(str(output_path))
 
     # 替换正文段落
     for para in doc.paragraphs:
@@ -47,14 +47,6 @@ def fill_docx(output_path: Path, content_map: dict[str, str], pattern: Pattern[s
             _fill_paragraph(para, content_map, pattern)
 
     doc.save(str(output_path))
-
-
-def _fill_table(table: Any, content_map: dict[str, str], pattern: Pattern[str]) -> None:
-    """替换表格中所有单元格的占位符。"""
-    for row in table.rows:
-        for cell in row.cells:
-            for para in cell.paragraphs:
-                _fill_paragraph(para, content_map, pattern)
 
 
 def _fill_paragraph(para: Any, content_map: dict[str, str], pattern: Pattern[str]) -> None:
@@ -85,6 +77,14 @@ def _fill_paragraph(para: Any, content_map: dict[str, str], pattern: Pattern[str
     
     for run in runs[1:]:
         run.text = ''
+
+
+def _fill_table(table: Any, content_map: dict[str, str], pattern: Pattern[str]) -> None:
+    """替换表格中所有单元格的占位符。"""
+    for row in table.rows:
+        for cell in row.cells:
+            for para in cell.paragraphs:
+                _fill_paragraph(para, content_map, pattern)
 
 
 def _has_multi_run_match(runs: Any, full_text: str, pattern: Pattern[str]) -> bool:

@@ -58,20 +58,19 @@ def extract_docx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
     Returns:
         lines (list[str]): 提取出的文本行，失败时返回错误信息。
     """
-    from docx.oxml.ns import qn
-
     lines: list[str] = []
     assets_result: dict[str, list[str]] = {}
     if assets_dir:
         assets_result = assets.extract_ooxml_assets(filepath, assets_dir / filepath.stem, '.docx')
         
     try:
-        Document = ensure_import('python-docx', 'docx', attr='Document')  # type: ignore[assignment]
+        Document = ensure_import('python-docx', 'docx', attr='Document')
+        qn = ensure_import('python-docx', 'docx.oxml.ns', attr='qn')
     except ImportError:
         return ['[Error: python-docx 未安装。执行: pip install python-docx]']
 
     try:
-        doc = Document(str(filepath))  # type: ignore[operator]
+        doc = Document(str(filepath))
     except Exception as e:
         return [f'[Error: 用 python-docx 打开 .docx 失败: {e}]']
 
@@ -91,7 +90,7 @@ def extract_docx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
             style_count[val.lower()] = style_count.get(val.lower(), 0) + 1
 
     # 始终使用有序提取——保留段落/表格的真实交错顺序
-    _extract_docx_body_ordered(doc, lines, style_count)
+    _extract_docx_body_ordered(doc, lines, style_count, qn)
     if assets_result:
         assets.append_assets_summary(lines, assets_result)
     
@@ -128,15 +127,13 @@ def _extract_doc_com(filepath: Path, assets_dir: Path | None = None) -> list[str
         return [f'[Error: 通过 COM 提取 DOC 失败: {e}]']
 
 
-def _extract_docx_body_ordered(doc, lines: list[str], style_count: dict[str, int]) -> None:
+def _extract_docx_body_ordered(doc, lines: list[str], style_count: dict[str, int], qn) -> None:
     """
     按文档顺序提取 docx 内容，添加 Markdown 标题标记。
 
     通过迭代 XML body 使段落和表格以真实文档顺序出现,
     有别于 doc.paragraphs + doc.tables 这种分离序列的方式。
     """
-    from docx.oxml.ns import qn
-
     def text(elem) -> str:
         """收集 elem 内所有 w:t 节点文本。"""
         return ''.join(t.text or '' for t in elem.iter(qn('w:t')))
@@ -152,7 +149,7 @@ def _extract_docx_body_ordered(doc, lines: list[str], style_count: dict[str, int
             # 2. 自定义样式推断（a4 -> 2，与真实级别对比后可能高估或低估）
             # 取最小值（更高级别）作为最终级别
             heading_level = detect_chinese_heading(texts)
-            style_level = _get_heading_style_level(child, style_count)
+            style_level = _get_heading_style_level(child, qn, style_count)
             if style_level is not None and (heading_level is None or style_level < heading_level):
                 heading_level = style_level
             if heading_level is not None:
@@ -173,7 +170,7 @@ def _extract_docx_body_ordered(doc, lines: list[str], style_count: dict[str, int
             lines.append('')
 
 
-def _get_heading_style_level(child, style_count: dict[str, int] | None = None) -> int | None:
+def _get_heading_style_level(child, qn, style_count: dict[str, int] | None = None) -> int | None:
     """
     检查段落是否应用了标题样式。
 
@@ -184,7 +181,6 @@ def _get_heading_style_level(child, style_count: dict[str, int] | None = None) -
 
     没有匹配时返回 None。
     """
-    from docx.oxml.ns import qn
     pPr = child.find(qn('w:pPr'))
     if pPr is None:
         return None
