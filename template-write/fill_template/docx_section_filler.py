@@ -20,21 +20,26 @@ from sys import stderr
 from typing import Any
 
 from .deps import ensure_import
+from .docx_scanner import (
+    collect_paragraphs, identify_headings, find_empty_sections,
+    print_structure, print_style_hints,
+    get_style_name, text_of,
+)
 
 _SCOPE_SEP = ' / '
-
-_BODY_STYLE_NAMES = frozenset({
-    'normal', '正文', '默认段落字体', 'body text', 'bodytext',
-    'caption', 'footnote', 'endnote', 'header', 'footer',
-    'toc 1', 'toc 2', 'toc 3', 'tocheading',
-    'table grid', 'list paragraph',
-})
 
 @dataclass
 class _LocateContext:
     children: list[Any]
     qn: Any
     hs_lower: str | None = None
+
+@dataclass
+class _FillSession:
+    Inches: Any
+    body: Any
+    doc: Any
+    locate_ctx: _LocateContext
 
 
 # ===================================================================
@@ -52,99 +57,11 @@ def scan_docx(doc_path: Path) -> None:
     Document = ensure_import("python-docx", "docx", attr="Document")
     qn = ensure_import("python-docx", "docx.oxml.ns", attr="qn")
     body = Document(str(doc_path)).element.body
-
-    # 收集段落信息 & 样式计数 & 每样式文本列表（用于长度/标题判断）
-    all_paras: list[tuple[str, str]] = []  # (style, text)
-    style_counts: dict[str, int] = {}
-    style_texts: dict[str, list[str]] = {}
-    for p_elem in body.iter(qn("w:p")):
-        style = _get_style_name(p_elem, qn)
-        text = _text_of(p_elem, qn).strip()
-        all_paras.append((style, text))
-        if not style or not text:
-            continue
-
-        style_counts[style] = style_counts.get(style, 0) + 1
-        style_texts.setdefault(style, []).append(text)
-
-    # 识别标题段落：Word 内置 Heading 或「短文本 + 高频」的自定义样式
-    # 关键：正文样式（如 a8）的段落较长，标题样式（如 a4）的段落较短——
-    # 用平均文本长度区分，避免把正文样式误判为标题。
-    headings: list[tuple[str, str]] = []  # (style, text)
-    heading_styles: set[str] = set()
-    for style, text in all_paras:
-        if not text:
-            continue
-        
-        if style and style.lower().startswith("heading"):
-            headings.append((style, text))
-        
-        elif style and _is_custom_heading_style(style, style_counts, style_texts):
-            headings.append((style, text))
-            heading_styles.add(style)
-
-    # 空节检测：标题后无任何非空正文即为空节
-    empty_set = _find_empty_sections(all_paras, headings)
-
-    # 输出：按样式推断缩进层级
-    print("Document structure:")
-    style_to_depth: dict[str, int] = {}
-    if headings:
-        for style, _ in headings:
-            if style in style_to_depth:
-                continue
-
-            if style.lower().startswith("heading"):
-                try:
-                    d = int(style.split()[-1]) - 1
-                except ValueError:
-                    d = len(style_to_depth)
-            else:
-                d = len(style_to_depth)
-            
-            style_to_depth[style] = d
-
-        min_depth = min(style_to_depth.values())
-        for hi, (style, text) in enumerate(headings):
-            d = style_to_depth.get(style, 0) - min_depth
-            indent = "  " * max(d, 0)
-            empty_tag = " [EMPTY]" if hi in empty_set and d > 0 else ""
-            print(f"  {indent}[{style}] {text}{empty_tag}")
-
-    # 统计
-    total = len(headings)
-    if headings and style_to_depth:
-        min_d = min(style_to_depth.values())
-        empty_count = sum(
-            1 for hi in empty_set
-            if style_to_depth.get(headings[hi][0], 0) > min_d
-        )
-    
-    else:
-        empty_count = 0
-    print(f"\nHeadings: {total} total, {empty_count} empty sub-sections")
-
-    # 样式提示——排除图片标题样式（非节边界），按出现次数排序取最频繁的
-    # 图片标题样式（如 a3，段落多以"图"/"Figure"开头）不是节边界，不应作为 --heading-style
-    boundary_styles = [s for s in heading_styles if not _is_caption_style(s, style_texts)]
-    if boundary_styles:
-        ranked = sorted(boundary_styles, key=lambda s: style_counts.get(s, 0), reverse=True)
-        styles_str = ", ".join(sorted(heading_styles))
-        primary = ranked[0]
-        print(f"Custom heading styles: {styles_str}")
-        print(f"Hint: use --heading-style {primary} for section filling.")
-    
-    elif heading_styles:
-        # 只有图片标题样式时，回退到全部标题样式
-        ranked = sorted(heading_styles, key=lambda s: style_counts.get(s, 0), reverse=True)
-        print(f"Custom heading styles: {', '.join(ranked)}")
-        print(f"Hint: use --heading-style {ranked[0]} for section filling.")
-    
-    else:
-        print("No custom heading styles detected. Document uses standard Heading styles.")
-    
-    if total > 0:
-        print('Hint: use scoped syntax "Parent / Child" to disambiguate duplicate headings.')
+    all_paras, style_counts, style_texts = collect_paragraphs(body, qn)
+    headings, heading_styles = identify_headings(all_paras, style_counts, style_texts)
+    empty_set = find_empty_sections(all_paras, headings)
+    total = print_structure(headings, empty_set)
+    print_style_hints(heading_styles, style_counts, style_texts, total)
 
 
 def fill_docx_sections(doc_path: Path,
@@ -165,22 +82,15 @@ def fill_docx_sections(doc_path: Path,
     Returns:
         int: 成功填充的节数量。
     """
-    Document = ensure_import("python-docx", "docx", attr="Document")
-    qn = ensure_import("python-docx", "docx.oxml.ns", attr="qn")
-    Inches = ensure_import("python-docx", "docx.shared", attr="Inches")
-    doc = Document(str(doc_path))
-    body = doc.element.body
-    hs_lower = heading_style.lower() if heading_style else None
-    locate_ctx = _LocateContext(children=list(body), qn=qn, hs_lower=hs_lower)
-
+    session = _open_fill_session(doc_path, heading_style)
     filled_count = 0
     missed: list[str] = []
     filled_summary: list[tuple[str, int, int]] = []
 
     for heading_text, items in sections.items():
-        locate_ctx.children = list(body)
+        session.locate_ctx.children = list(session.body)
 
-        loc = _locate_section(locate_ctx, heading_text)
+        loc = _locate_section(session.locate_ctx, heading_text)
         if loc is None:
             missed.append(heading_text)
             continue
@@ -199,15 +109,15 @@ def fill_docx_sections(doc_path: Path,
 
         # 清除旧内容（replace 模式）—— 清除后索引移位，需重新定位标题作锚点
         if mode == "replace":
-            _remove_elements_between(body, locate_ctx.children, heading_idx, end_idx)
-            heading_idx = _find_heading_index_scoped(locate_ctx, heading_text)
+            _remove_elements_between(session.body, session.locate_ctx.children, heading_idx, end_idx)
+            heading_idx = _find_heading_index_scoped(session.locate_ctx, heading_text)
             if heading_idx is None:
                 missed.append(heading_text)
                 continue
 
         # 插入新内容
-        anchor = locate_ctx.children[heading_idx]
-        para_count, img_count = _insert_items(doc, anchor, items, Inches=Inches)
+        anchor = session.locate_ctx.children[heading_idx]
+        para_count, img_count = _insert_items(session.doc, anchor, items, Inches=session.Inches)
 
         filled_count += 1
         filled_summary.append((heading_text, para_count, img_count))
@@ -221,7 +131,7 @@ def fill_docx_sections(doc_path: Path,
         print(f"\nDry-run: {filled_count}/{len(sections)} sections located, no changes made.")
         return filled_count
 
-    doc.save(str(doc_path))
+    session.doc.save(str(doc_path))
     _verify_filled(doc_path, filled_summary, sections)
 
     if missed:
@@ -250,7 +160,7 @@ def _locate_section(locate_ctx: _LocateContext, heading_text: str) -> tuple[int,
     end_idx = _find_style_boundary(
         locate_ctx,
         heading_idx,
-        _get_style_name(locate_ctx.children[heading_idx], locate_ctx.qn)
+        get_style_name(locate_ctx.children[heading_idx], locate_ctx.qn)
     )
     return heading_idx, end_idx
 
@@ -284,7 +194,7 @@ def _find_heading_index(locate_ctx: _LocateContext, text: str, start: int = 0) -
         if child.tag != locate_ctx.qn("w:p"):
             continue
         
-        if text_lower in _text_of(child, locate_ctx.qn).lower():
+        if text_lower in text_of(child, locate_ctx.qn).lower():
             return i
     
     return None
@@ -309,7 +219,7 @@ def _find_style_boundary(locate_ctx: _LocateContext,
         if child.tag != locate_ctx.qn("w:p"):
             continue
 
-        style_lower = _get_style_name(child, locate_ctx.qn).lower()
+        style_lower = get_style_name(child, locate_ctx.qn).lower()
 
         # 相同样式名 -> 同级标题 -> 边界
         if hs_lower_local and style_lower == hs_lower_local:
@@ -402,91 +312,16 @@ def _build_text_para(doc, item: dict[str, Any]):
     return p._element
 
 
-# ===================================================================
-#  工具函数
-# ===================================================================
-
-def _get_style_name(p_elem, qn) -> str:
-    """提取段落的 w:pStyle 值，无样式时返回空字符串。"""
-    pPr = p_elem.find(qn("w:pPr"))
-    if pPr is None:
-        return ""
-    
-    pStyle = pPr.find(qn("w:pStyle"))
-    if pStyle is None:
-        return ""
-    
-    return pStyle.get(qn("w:val"), "")
-
-
-def _text_of(p_elem, qn) -> str:
-    """收集 w:p 元素内所有 w:t 文本。"""
-    return "".join(t.text or "" for t in p_elem.iter(qn("w:t")))
-
-
-def _is_custom_heading_style(style: str,
-                             style_counts: dict[str, int],
-                             style_texts: dict[str, list[str]]) -> bool:
-    """判断自定义样式是否为标题样式（而非正文样式）。
-
-    判据：出现 ≥2 次、非已知正文样式名、且段落平均文本长度较短
-    （标题短、正文长）。阈值 60 字符可区分 a4 标题与 a8 正文。
-    """
-    if style.lower() in _BODY_STYLE_NAMES:
-        return False
-    if style_counts.get(style, 0) < 2:
-        return False
-    
-    texts = style_texts.get(style, [])
-    if not texts:
-        return False
-    
-    avg_len = sum(len(t) for t in texts) / len(texts)
-    return avg_len <= 60
-
-
-def _find_empty_sections(all_paras: list[tuple[str, str]],
-                         headings: list[tuple[str, str]]) -> set[int]:
-    """
-    检测哪些标题节为空（标题后无任何非空正文）。
-
-    **用指针顺序匹配**：按文档顺序遍历段落,
-    仅当段落文本等于下一个待匹配标题的文本时才推进指针,
-    避免重复标题或正文恰好与标题同名时误判;
-    标题之间的非空正文标记当前标题非空。
-    """
-    empty_set = set(range(len(headings)))
-    ptr = 0       # 指向下一个待匹配的标题
-    current = -1  # 当前所在标题索引
-
-    for _, text in all_paras:
-        if not text:
-            continue
-        
-        # 段落文本等于下一个待匹配标题 -> 进入该标题
-        if ptr < len(headings) and text == headings[ptr][1]:
-            current = ptr
-            ptr += 1
-            continue
-        
-        # 非标题正文 -> 标记当前标题非空
-        if current >= 0:
-            empty_set.discard(current)
-
-    return empty_set
-
-
-def _is_caption_style(style: str, style_texts: dict[str, list[str]]) -> bool:
-    """判断样式是否为图片标题样式（段落多以"图"/"Figure"/"Fig"开头）。
-
-    图片标题不是节边界，不应作为 --heading-style 建议。
-    """
-    texts = style_texts.get(style, [])
-    if not texts:
-        return False
-    
-    caption_count = sum(1 for t in texts if t.startswith(("图", "Figure", "Fig")))
-    return caption_count / len(texts) > 0.5
+def _open_fill_session(doc_path: Path, heading_style: str | None = None) -> _FillSession:
+    """打开 docx 填充会话，返回 _FillSession 对象。"""
+    Document = ensure_import("python-docx", "docx", attr="Document")
+    qn = ensure_import("python-docx", "docx.oxml.ns", attr="qn")
+    Inches = ensure_import("python-docx", "docx.shared", attr="Inches")
+    doc = Document(str(doc_path))
+    body = doc.element.body
+    hs_lower = heading_style.lower() if heading_style else None
+    locate_ctx = _LocateContext(children=list(body), qn=qn, hs_lower=hs_lower)
+    return _FillSession(Inches=Inches, body=body, doc=doc, locate_ctx=locate_ctx)
 
 
 def _verify_filled(doc_path: Path,
