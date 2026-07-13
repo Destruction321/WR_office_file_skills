@@ -12,7 +12,7 @@ from pathlib import Path
 from re import compile
 from shutil import copy2
 
-from .docx_placeholder import fill_docx
+from .docx import fill_docx
 from .text_filler import fill_text
 
 # 默认占位符模式：{{ name }}、{{name}} 等

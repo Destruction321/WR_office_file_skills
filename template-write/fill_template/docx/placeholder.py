@@ -12,7 +12,7 @@ from pathlib import Path
 from re import Pattern, Match
 from typing import Any
 
-from .deps import ensure_import
+from ..deps import ensure_import
 
 
 def fill_docx(output_path: Path, content_map: dict[str, str], pattern: Pattern[str]) -> None:

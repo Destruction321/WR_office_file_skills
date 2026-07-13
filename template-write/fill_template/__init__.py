@@ -7,6 +7,6 @@
 """
 
 from .filler import fill_template
-from .docx_section_filler import fill_docx_sections
+from .docx import fill_docx_sections
 
 __all__ = ['fill_template', 'fill_docx_sections']

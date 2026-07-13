@@ -19,12 +19,8 @@ from pathlib import Path
 from sys import stderr
 from typing import Any
 
-from .deps import ensure_import
-from .docx_scanner import (
-    collect_paragraphs, identify_headings, find_empty_sections,
-    print_structure, print_style_hints,
-    get_style_name, text_of,
-)
+from . import scanner
+from ..deps import ensure_import
 
 _SCOPE_SEP = ' / '
 
@@ -57,11 +53,11 @@ def scan_docx(doc_path: Path) -> None:
     Document = ensure_import("python-docx", "docx", attr="Document")
     qn = ensure_import("python-docx", "docx.oxml.ns", attr="qn")
     body = Document(str(doc_path)).element.body
-    all_paras, style_counts, style_texts = collect_paragraphs(body, qn)
-    headings, heading_styles = identify_headings(all_paras, style_counts, style_texts)
-    empty_set = find_empty_sections(all_paras, headings)
-    total = print_structure(headings, empty_set)
-    print_style_hints(heading_styles, style_counts, style_texts, total)
+    all_paras, style_counts, style_texts = scanner.collect_paragraphs(body, qn)
+    headings, heading_styles = scanner.identify_headings(all_paras, style_counts, style_texts)
+    empty_set = scanner.find_empty_sections(all_paras, headings)
+    total = scanner.print_structure(headings, empty_set)
+    scanner.print_style_hints(heading_styles, style_counts, style_texts, total)
 
 
 def fill_docx_sections(doc_path: Path,
@@ -160,7 +156,7 @@ def _locate_section(locate_ctx: _LocateContext, heading_text: str) -> tuple[int,
     end_idx = _find_style_boundary(
         locate_ctx,
         heading_idx,
-        get_style_name(locate_ctx.children[heading_idx], locate_ctx.qn)
+        scanner.get_style_name(locate_ctx.children[heading_idx], locate_ctx.qn)
     )
     return heading_idx, end_idx
 
@@ -194,7 +190,7 @@ def _find_heading_index(locate_ctx: _LocateContext, text: str, start: int = 0) -
         if child.tag != locate_ctx.qn("w:p"):
             continue
         
-        if text_lower in text_of(child, locate_ctx.qn).lower():
+        if text_lower in scanner.text_of(child, locate_ctx.qn).lower():
             return i
     
     return None
@@ -219,7 +215,7 @@ def _find_style_boundary(locate_ctx: _LocateContext,
         if child.tag != locate_ctx.qn("w:p"):
             continue
 
-        style_lower = get_style_name(child, locate_ctx.qn).lower()
+        style_lower = scanner.get_style_name(child, locate_ctx.qn).lower()
 
         # 相同样式名 -> 同级标题 -> 边界
         if hs_lower_local and style_lower == hs_lower_local:
