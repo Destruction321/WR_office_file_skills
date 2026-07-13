@@ -32,12 +32,12 @@ def extract_xlsx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
         )
 
     try:
-        load_workbook = ensure_import('openpyxl', attr='load_workbook')  # type: ignore[assignment]
+        load_workbook = ensure_import('openpyxl', attr='load_workbook')
     except ImportError:
         return ['[Error: openpyxl 未安装。执行: pip install openpyxl]']
 
     try:
-        wb = load_workbook(filepath, data_only=True)  # type: ignore[operator]
+        wb = load_workbook(filepath, data_only=True)
         for name in wb.sheetnames:
             ws = wb[name]
             max_row = ws.max_row or 0
@@ -78,13 +78,13 @@ def extract_xls(filepath: Path, assets_dir: Path | None = None) -> list[str]:
         assets_result = assets.extract_ooxml_assets(filepath, assets_dir / filepath.stem, '.xls')
 
     try:
-        open_workbook = ensure_import('xlrd', attr='open_workbook')  # type: ignore[assignment]
+        open_workbook = ensure_import('xlrd', attr='open_workbook')
     except ImportError:
         print('  [警告] xlrd 未安装，尝试 COM 回退 ...', file=stderr)
         return _extract_xls_com(filepath, assets_dir)
 
     try:
-        wb = open_workbook(str(filepath))  # type: ignore[operator]
+        wb = open_workbook(str(filepath))
         for s in range(wb.nsheets):
             sheet = wb.sheet_by_index(s)
             lines.append(f'--- Sheet: {sheet.name} ({sheet.nrows} 行 x {sheet.ncols} 列) ---')

@@ -113,13 +113,13 @@ def extract_pdf_assets(filepath: Path, assets_dir: Path) -> dict[str, list[str]]
     img_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        fitz_open = ensure_import('PyMuPDF', 'fitz', attr='open')  # type: ignore[assignment]
+        fitz_open = ensure_import('PyMuPDF', 'fitz', attr='open')
     except ImportError:
         fitz_open = None
 
     if fitz_open:
         try:
-            doc = fitz_open(filepath)  # type: ignore[operator]
+            doc = fitz_open(filepath)
             for page_idx in range(len(doc)):
                 _extract_page_images(doc, page_idx, img_dir, result)
             doc.close()

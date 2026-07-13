@@ -29,12 +29,12 @@ def extract_pptx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
         assets_result = assets.extract_ooxml_assets(filepath, assets_dir / filepath.stem, '.pptx')
 
     try:
-        Presentation = ensure_import('python-pptx', 'pptx', attr='Presentation')  # type: ignore[assignment]
+        Presentation = ensure_import('python-pptx', 'pptx', attr='Presentation')
     except ImportError:
         return ['[Error: python-pptx 未安装。执行: pip install python-pptx]']
 
     try:
-        prs = Presentation(str(filepath))  # type: ignore[operator]
+        prs = Presentation(str(filepath))
     except Exception:
         return ['[Error: 用 python-pptx 打开 .pptx 失败]']
 
@@ -43,14 +43,14 @@ def extract_pptx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
         lines.append(f'--- Slide {i} ---')
         for shape in slide.shapes:
             if shape.has_text_frame:
-                for p in shape.text_frame.paragraphs:  # type: ignore[attr-defined]
+                for p in shape.text_frame.paragraphs:
                     t = p.text.strip()
                     if not t:
                         continue
                     lines.append(t)
 
             if shape.has_table:
-                for row in shape.table.rows:  # type: ignore[attr-defined]
+                for row in shape.table.rows:
                     cells = [
                         cell.text.strip().replace('\n', ' ').replace('\r', '')
                         for cell in row.cells

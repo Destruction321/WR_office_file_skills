@@ -12,6 +12,9 @@ from pathlib import Path
 from re import compile
 from shutil import copy2
 
+from .docx_placeholder import fill_docx
+from .text_filler import fill_text
+
 # 默认占位符模式：{{ name }}、{{name}} 等
 DEFAULT_PATTERN = r'\{\{\s*(\w+)\s*\}\}'
 
@@ -58,18 +61,13 @@ def fill_template(template_path: str | Path,
     if ext in _DOCX_EXTS:
         # docx：先复制模板，再原地替换
         copy2(template_path, output_path)
-        from .docx_placeholder import fill_docx
         fill_docx(output_path, content_map, compiled)
 
     elif ext in _TEXT_EXTS:
         # 纯文本：读 -> 替换 -> 重新写入
-        from .text_filler import fill_text
         fill_text(template_path, output_path, content_map, compiled)
 
     else:
-        raise ValueError(
-            f'不支持的格式: {ext}。'
-            f'仅支持 docx 和纯文本（md/txt）。'
-        )
+        raise ValueError(f'不支持的格式: {ext}。仅支持 docx 和纯文本（md/txt）。')
 
     return output_path

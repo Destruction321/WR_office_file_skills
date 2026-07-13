@@ -33,13 +33,13 @@ def extract_pdf(filepath: Path, assets_dir: Path | None = None) -> list[str]:
 
     # 先试 pdfplumber（文字提取效果好）
     try:
-        pdfplumber_open = ensure_import('pdfplumber', attr='open')  # type: ignore[assignment]
+        pdfplumber_open = ensure_import('pdfplumber', attr='open')
     except ImportError:
         pdfplumber_open = None
 
     if pdfplumber_open:
         try:
-            with pdfplumber_open(filepath) as pdf:  # type: ignore[operator]
+            with pdfplumber_open(filepath) as pdf:
                 for i, page in enumerate(pdf.pages, 1):
                     text = page.extract_text()
                     if not text:
@@ -57,12 +57,12 @@ def extract_pdf(filepath: Path, assets_dir: Path | None = None) -> list[str]:
 
     # 回退 PyPDF2
     try:
-        PdfReader = ensure_import('PyPDF2', attr='PdfReader')  # type: ignore[assignment]
+        PdfReader = ensure_import('PyPDF2', attr='PdfReader')
     except ImportError:
         return ['[Error: pdfplumber 和 PyPDF2 均未安装。执行: pip install pdfplumber]']
 
     try:
-        reader = PdfReader(filepath)  # type: ignore[operator]
+        reader = PdfReader(filepath)
         for i, page in enumerate(reader.pages, 1):
             text = page.extract_text()
             if not text:
