@@ -1,7 +1,6 @@
 """OLE 复合文档分解 — 从 .bin 嵌入对象中提取原生数据。"""
 from pathlib import Path
 from sys import stderr
-from zipfile import ZipFile
 
 from .deps import ensure_import
 from .util import identify_data, MAGIC_SIGNATURES
@@ -58,10 +57,6 @@ def decompose_ole_object(filepath: Path, out_dir: Path) -> list[tuple[str | None
         out_path.write_bytes(raw_data)
         extracted.append((str(out_path), desc))
 
-        # 如果提取出来的是 ZIP，递归解压
-        if ext == '.zip':
-            _extract_nested_zip(out_path, stem, out_dir, extracted)
-
     except Exception as e:
         print(f'  [警告] OLE 分解失败: {e}', file=stderr)
 
@@ -112,48 +107,3 @@ def _find_ole_embedded_offset(native_data: bytes) -> tuple[list[str], int] | Non
         return None
 
     return strings, data_start
-
-
-def _extract_nested_zip(out_path: Path,
-                        stem: str,
-                        out_dir: Path,
-                        extracted: list[tuple[str | None, str]]) -> None:
-    """
-    递归提取嵌入的 ZIP 压缩包内的所有条目,
-    处理加密条目时保留原文件，记录提示信息。
-    """
-    zip_dir = out_dir / f'{stem}_contents'
-    try:
-        zip_dir.mkdir(parents=True, exist_ok=True)
-        with ZipFile(out_path, 'r') as z:
-            for name in z.namelist():
-                if name.endswith('/'):
-                    continue
-
-                # 保留相对目录结构，避免不同子目录下同名文件互相覆盖
-                safe_name = name.lstrip('/').replace('..', '_')
-                member_path = zip_dir / safe_name
-                member_path.parent.mkdir(parents=True, exist_ok=True)
-
-                if z.getinfo(name).flag_bits & 0x1:
-                    try:
-                        member_path.write_bytes(z.read(name, pwd=b''))
-                        extracted.append((str(member_path), f'加密条目(内容已加密): {safe_name}'))
-                    except RuntimeError:
-                        extracted.append((None, f'  L {name} (加密条目，原ZIP已保留)'))
-                    continue
-
-                with z.open(name) as src:
-                    member_path.write_bytes(src.read())
-
-                _, sub_desc = identify_data(member_path.read_bytes()[:64])
-                extracted.append((str(member_path), f'ZIP内容: {sub_desc}'))
-
-    except RuntimeError as e:
-        if 'password' in str(e).lower() or 'encrypted' in str(e).lower():
-            extracted.append((None, f'  L ZIP包含加密条目，原文件已保留: {out_path}'))
-        else:
-            extracted.append((None, f'  L ZIP提取错误: {e}'))
-    
-    except Exception as e:
-        extracted.append((None, f'  L ZIP提取错误: {e}'))

@@ -58,38 +58,12 @@ def extract_ooxml_assets(filepath: Path, assets_dir: Path, ext_key: str) -> dict
     assets_dir.mkdir(parents=True, exist_ok=True)
 
     try:
-        with ZipFile(filepath, 'r') as z:
-            for name in z.namelist():
-                if name.endswith('/'):
-                    continue
-
-                matched = False
-                for prefix in folders:
-                    if not name.startswith(prefix):
-                        continue
-                    matched = True
-                    break
-                if not matched:
-                    continue
-
-                basename = Path(name).name
-                ext = Path(basename).suffix.lower()
-                cat, out_subdir, label = _classify_asset(ext, name, assets_dir, basename)
-                out_subdir.mkdir(parents=True, exist_ok=True)
-                out_path = out_subdir / basename
-                counter = 1
-                
-                while out_path.exists():
-                    out_path = out_subdir / f'{Path(basename).stem}_{counter}{ext}'
-                    counter += 1
-                out_path.write_bytes(z.read(name))
-                result[cat].append(label)
-
-                _try_decompose_ole(out_path, assets_dir, cat, result)
+        _extract_from_zip(filepath, folders, assets_dir, result)
     
     except BadZipFile:
         if ext_key not in ('.xls', '.doc'):
             print(f'  [警告] 非有效 ZIP/OOXML 文件: {filepath.name}', file=stderr)
+    
     except Exception as e:
         print(f'  [警告] 资源提取失败 {filepath.name}: {e}', file=stderr)
     
@@ -159,6 +133,41 @@ def append_assets_summary(lines: list[str], assets_result: dict[str, list[str]])
 # ===================================================================
 #  内部辅助函数
 # ===================================================================
+
+def _extract_from_zip(filepath: Path,
+                      folders: list[str],
+                      assets_dir: Path,
+                      result: dict[str, list[str]]) -> None:
+    """文件提取核心逻辑"""
+    with ZipFile(filepath, 'r') as z:
+        for name in z.namelist():
+            if name.endswith('/'):
+                continue
+
+            matched = False
+            for prefix in folders:
+                if not name.startswith(prefix):
+                    continue
+                matched = True
+                break
+            if not matched:
+                continue
+
+            basename = Path(name).name
+            ext = Path(basename).suffix.lower()
+            cat, out_subdir, label = _classify_asset(ext, name, assets_dir, basename)
+            out_subdir.mkdir(parents=True, exist_ok=True)
+            out_path = out_subdir / basename
+            counter = 1
+            
+            while out_path.exists():
+                out_path = out_subdir / f'{Path(basename).stem}_{counter}{ext}'
+                counter += 1
+            out_path.write_bytes(z.read(name))
+            result[cat].append(label)
+
+            _try_decompose_ole(out_path, assets_dir, cat, result)
+
 
 def _classify_asset(ext: str, name: str, assets_dir: Path, basename: str) -> tuple[str, Path, str]:
     """根据扩展名和路径将资源分类，返回（类别 key，输出目录路径，显示标签）。"""
