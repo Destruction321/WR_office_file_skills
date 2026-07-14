@@ -66,7 +66,7 @@ def find_heading_index_scoped(locate_ctx: LocateContext, heading_text: str) -> i
         heading_text (str): 标题文本，支持限定定位语法。
 
     Returns:
-        int | None: 标题段落在 children 中的索引，未找到返回 None。
+        heading_index (int | None): 标题段落在 children 中的索引，未找到返回 None。
     """
     parent_text, sep, child_text = heading_text.partition(SCOPE_SEP)
     if not sep:

@@ -24,9 +24,9 @@ def collect_paragraphs(body, qn) -> tuple[list[tuple[str, str]], dict[str, int],
     Returns:
         (all_paras, style_counts, style_texts)\
         (tuple[list[tuple[str, str]], dict[str, int], dict[str, list[str]]]):
-        1. **all_paras** (list[tuple[str, str]]): (style, text) 段落列表，按文档顺序。
-        2. **style_counts** (dict[str, int]): 样式名 -> 出现次数。
-        3. **style_texts** (dict[str, list[str]]): 样式名 -> 段落文本列表。
+        1. **all_paras** *(list[tuple[str, str]])*: **(style, text)** 段落列表，按文档顺序。
+        2. **style_counts** *(dict[str, int])*: 样式名 -> 出现次数。
+        3. **style_texts** *(dict[str, list[str]])*: 样式名 -> 段落文本列表。
     """
     all_paras: list[tuple[str, str]] = []  # (style, text)
     style_counts: dict[str, int] = {}
@@ -60,8 +60,8 @@ def identify_headings(all_paras: list[tuple[str, str]],
         
     Returns:
         (headings, heading_styles) (tuple[list[tuple[str, str]], set[str]]):
-        1. **headings** (list[tuple[str, str]]): (style, text) 的标题段落列表，按文档顺序。
-        2. **heading_styles** (set[str]): 被识别为标题的自定义样式名集合（不含内置 Heading 样式）。
+        1. **headings** *(list[tuple[str, str]])*: **(style, text)** 的标题段落列表，按文档顺序。
+        2. **heading_styles** *(set[str])*: 被识别为标题的自定义样式名集合（不含内置 Heading 样式）。
     """
     headings: list[tuple[str, str]] = []  # (style, text)
     heading_styles: set[str] = set()

@@ -159,16 +159,8 @@ def _verify_filled(doc_path: Path,
     except ImportError as e:
         print(f'  [警告] 验证跳过: {e}', file=stderr)
         return
+    
     doc = Document(str(doc_path))
-
-    # 收集所有节标题的子文本（去重后），用于段落匹配
-    all_child_texts: list[str] = []  # 所有子标题文本（小写），按顺序
-    heading_keys: dict[str, list[str]] = {}  # child_text -> [orig_key1, orig_key2, ...]
-    for ht in sections:
-        _, sep, child = ht.partition(locator.SCOPE_SEP)
-        key = child.strip() if sep else ht.strip()
-        heading_keys.setdefault(key.lower(), []).append(ht)
-        all_child_texts.append(key.lower())
 
     # 用指针方式遍历：每个标题对应一个指针，遇到匹配段落时推进
     # 按文档顺序，将每个段落分配给当前活跃的节
@@ -178,11 +170,9 @@ def _verify_filled(doc_path: Path,
     # 构建 ordered_keys 列表
     ordered_keys: list[str] = []
     for ht in sections:
-        _, sep, child = ht.partition(locator.SCOPE_SEP)
-        key = child.strip() if sep else ht.strip()
         ordered_keys.append(ht)
+        
     ptr = 0  # 指向 ordered_keys 中下一个待匹配的标题
-
     for p in doc.paragraphs:
         p_text = p.text.strip()
         if not p_text:
