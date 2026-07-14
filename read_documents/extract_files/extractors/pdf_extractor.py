@@ -7,7 +7,6 @@
 """
 
 from pathlib import Path
-from sys import stderr
 from typing import Any
 
 from .. import assets
