@@ -34,7 +34,7 @@
 | 分支          | 内容                                                                                                          |
 | ------------- | ------------------------------------------------------------------------------------------------------------- |
 | `opencode`    | 全部改动：代码 + 文档（`.md`、`README.md`、`AGENTS.md`、`docs/`）+ `.gitignore`                               |
-| `claude-code` | 仅`.py` 代码同步；`CLAUDE.md` / `README.md` / `.gitignore` 由 `scripts/sync_docs.py` 从 opencode 对应文件生成 |
+| `claude-code` | 仅`.py` 代码同步 + `test/` 占位文件；`CLAUDE.md` / `README.md` / `.gitignore` 由 `scripts/sync_docs.py` 从 opencode 对应文件生成 |
 
 ### 提交流程
 
