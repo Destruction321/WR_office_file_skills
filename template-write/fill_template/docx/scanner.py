@@ -1,9 +1,9 @@
 """
 # docx 模板扫描器 — 结构分析与样式提示。
-
 - `scan_docx` 调用的内部工具：收集段落、识别标题、空节检测、打印结构与样式提示。
-- XML 工具 `get_style_name` / `text_of` 也被 `section_filler` 的定位函数使用。
 """
+
+from . import xmlutils
 
 _BODY_STYLE_NAMES = frozenset({
     'normal', '正文', '默认段落字体', 'body text', 'bodytext',
@@ -23,7 +23,7 @@ def collect_paragraphs(body, qn) -> tuple[list[tuple[str, str]], dict[str, int],
         
     Returns:
         (all_paras, style_counts, style_texts)\
-        (tuple[list[tuple[str, str]],dict[str, int], dict[str, list[str]]]):
+        (tuple[list[tuple[str, str]], dict[str, int], dict[str, list[str]]]):
         1. **all_paras** (list[tuple[str, str]]): (style, text) 段落列表，按文档顺序。
         2. **style_counts** (dict[str, int]): 样式名 -> 出现次数。
         3. **style_texts** (dict[str, list[str]]): 样式名 -> 段落文本列表。
@@ -33,8 +33,8 @@ def collect_paragraphs(body, qn) -> tuple[list[tuple[str, str]], dict[str, int],
     style_texts: dict[str, list[str]] = {}
 
     for p_elem in body.iter(qn("w:p")):
-        style = get_style_name(p_elem, qn)
-        text = text_of(p_elem, qn).strip()
+        style = xmlutils.get_style_name(p_elem, qn)
+        text = xmlutils.text_of(p_elem, qn).strip()
         all_paras.append((style, text))
         if not style or not text:
             continue
@@ -190,42 +190,6 @@ def print_style_hints(heading_styles: set[str],
     
     if total > 0:
         print('Hint: use scoped syntax "Parent / Child" to disambiguate duplicate headings.')
-
-
-def get_style_name(p_elem, qn) -> str:
-    """
-    ## 提取段落的 `w:pStyle 值`，无样式时返回空字符串。
-    
-    Args:
-        p_elem: `w:p` 元素
-        qn: docx.oxml.ns.qn 函数
-        
-    Returns:
-        style (str): 段落样式名，未设置时返回空字符串。
-    """
-    pPr = p_elem.find(qn("w:pPr"))
-    if pPr is None:
-        return ""
-    
-    pStyle = pPr.find(qn("w:pStyle"))
-    if pStyle is None:
-        return ""
-    
-    return pStyle.get(qn("w:val"), "")
-
-
-def text_of(p_elem, qn) -> str:
-    """
-    ## 收集 `w:p` 元素内所有 `w:t` 文本。
-    
-    Args:
-        p_elem: `w:p` 元素
-        qn: docx.oxml.ns.qn 函数
-        
-    Returns:
-        text (str): 段落文本，未设置时返回空字符串。
-    """
-    return "".join(t.text or "" for t in p_elem.iter(qn("w:t")))
 
 
 def _is_custom_heading_style(style: str,
