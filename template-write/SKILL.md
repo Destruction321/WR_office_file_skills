@@ -78,6 +78,8 @@ The scan shows structure but not what each section should contain. To understand
 - **Plain text** (`.md`, `.txt`): use the Read tool directly.
 
 > If the scan already shows enough (empty sections with obvious names), skip this step.
+>
+> **If the model has vision capability**: after reading the template text, also open each image file to examine its content. This lets you decide placement based on what the image actually shows rather than guessing from filenames. Images (paragraphs + pictures) cover ~95% of real-world section-injection use cases; more complex elements like tables or charts are best handled by editing the template directly.
 
 ### Step 3 — Fill
 

@@ -25,7 +25,6 @@ from ..deps import ensure_import
 
 @dataclass
 class _FillSession:
-    Inches: Any
     body: Any
     doc: Any
     locate_ctx: locator.LocateContext
@@ -74,9 +73,9 @@ def fill_docx_sections(doc_path: Path,
     session = _open_fill_session(doc_path, heading_style)
     filled_count = 0
     missed: list[str] = []
-    filled_summary: list[tuple[str, int, int]] = []
+    filled_summary: list[tuple[str, int, int, str]] = []
 
-    for heading_text, items in sections.items():
+    for sec_idx, (heading_text, items) in enumerate(sections.items()):
         session.locate_ctx.children = list(session.body)
 
         loc = locator.locate_section(session.locate_ctx, heading_text)
@@ -106,10 +105,15 @@ def fill_docx_sections(doc_path: Path,
 
         # 插入新内容
         anchor = session.locate_ctx.children[heading_idx]
-        para_count, img_count = elements.insert_items(session.doc, anchor, items, Inches=session.Inches)
+        sec_id = f"sec:{sec_idx}"
+        para_count, img_count, first_p, last_p = elements.insert_items(
+            session.doc, anchor, items,
+        )
+        if first_p is not None:
+            elements.mark_section_start(first_p, last_p, sec_id)
 
         filled_count += 1
-        filled_summary.append((heading_text, para_count, img_count))
+        filled_summary.append((heading_text, para_count, img_count, sec_id))
 
     if dry_run:
         if missed:
@@ -120,8 +124,10 @@ def fill_docx_sections(doc_path: Path,
         print(f"\nDry-run: {filled_count}/{len(sections)} sections located, no changes made.")
         return filled_count
 
+    # 内存验证（用 bookmark 标记定位）-> 清标记 -> save（干净落盘）
+    _verify_filled(session.doc, filled_summary)
+    elements.clear_section_marks(session.body)
     session.doc.save(str(doc_path))
-    _verify_filled(doc_path, filled_summary, sections)
 
     if missed:
         print(
@@ -139,65 +145,34 @@ def _open_fill_session(doc_path: Path, heading_style: str | None = None) -> _Fil
     """打开 docx 填充会话，返回 _FillSession 对象。"""
     Document = ensure_import("python-docx", "docx", attr="Document")
     qn = ensure_import("python-docx", "docx.oxml.ns", attr="qn")
-    Inches = ensure_import("python-docx", "docx.shared", attr="Inches")
     doc = Document(str(doc_path))
     body = doc.element.body
     hs_lower = heading_style.lower() if heading_style else None
     locate_ctx = locator.LocateContext(children=list(body), qn=qn, hs_lower=hs_lower)
-    return _FillSession(Inches=Inches, body=body, doc=doc, locate_ctx=locate_ctx)
+    return _FillSession(body=body, doc=doc, locate_ctx=locate_ctx)
 
 
-def _verify_filled(doc_path: Path,
-                   filled_summary: list[tuple[str, int, int]],
-                   sections: dict[str, list[dict[str, Any]]]) -> None:
-    """填充后轻量验证——重新打开文件检查已填充节的内容存在。"""
+def _verify_filled(doc, filled_summary: list[tuple[str, int, int, str]]) -> None:
+    """内存验证——按 bookmark 标记定位每个节插入的段落范围，数其中非空段落。
+
+    不重新打开文件、不依赖文本匹配标题。bookmark 标记由 `insert_items` 打、
+    `clear_section_marks` 清（save 前），故此处 doc 必须是填充后的内存对象。
+    """
     if not filled_summary:
         return
 
-    try:
-        Document = ensure_import("python-docx", "docx", attr="Document")
-    except ImportError as e:
-        print(f'  [警告] 验证跳过: {e}', file=stderr)
-        return
-    
-    doc = Document(str(doc_path))
-
-    # 用指针方式遍历：每个标题对应一个指针，遇到匹配段落时推进
-    # 按文档顺序，将每个段落分配给当前活跃的节
-    section_texts: dict[str, list[str]] = {ht: [] for ht in sections}
-    active_section: str | None = None
-
-    # 构建 ordered_keys 列表
-    ordered_keys: list[str] = []
-    for ht in sections:
-        ordered_keys.append(ht)
-        
-    ptr = 0  # 指向 ordered_keys 中下一个待匹配的标题
-    for p in doc.paragraphs:
-        p_text = p.text.strip()
-        if not p_text:
-            continue
-        
-        # 检查是否匹配某个待匹配的标题
-        matched = False
-        if ptr < len(ordered_keys):
-            _, sep, child = ordered_keys[ptr].partition(locator.SCOPE_SEP)
-            key = child.strip() if sep else ordered_keys[ptr].strip()
-            if key.lower() in p_text.lower():
-                active_section = ordered_keys[ptr]
-                ptr += 1
-                matched = True
-        
-        # 正文内容归入当前活跃节
-        if not matched and active_section and active_section in section_texts:
-            section_texts[active_section].append(p_text[:80])
-
+    body = doc.element.body
     print("Verification:")
-    for heading_text, para_count, img_count in filled_summary:
-        texts = section_texts.get(heading_text, [])
-        status = "OK" if texts else "EMPTY"
-        detail = (
-            f"{para_count} paragraphs + {img_count} images"
-            if status == "OK" else "no content found"
-        )
+    for heading_text, para_count, img_count, sec_id in filled_summary:
+        total, non_empty = elements.count_paras_in_section(body, sec_id)
+        expected = para_count + img_count
+        if non_empty > 0 and total == expected:
+            status = "OK"
+            detail = f"{para_count} paragraphs + {img_count} images"
+        elif non_empty > 0:
+            status = "OK"
+            detail = f"{non_empty}/{expected} non-empty (expected {para_count}p+{img_count}i)"
+        else:
+            status = "EMPTY"
+            detail = "no content found"
         print(f"  [{status}] '{heading_text}': {detail}")

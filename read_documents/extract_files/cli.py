@@ -40,6 +40,9 @@ def main() -> None:
     # --- 收集文件列表 ---
     file_list: list[str] = []
     if args.paths_file:
+        if not Path(args.paths_file).exists():
+            print(f'[Error] --paths-file 文件不存在: {args.paths_file}', file=stderr)
+            exit(1)
         file_list = discovery.read_paths_file(args.paths_file)
     
     elif args.root:

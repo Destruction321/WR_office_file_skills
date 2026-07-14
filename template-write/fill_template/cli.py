@@ -1,16 +1,14 @@
 """CLI 入口 — 支持占位符替换、节级内容填充和模板扫描三种模式。"""
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from json import load, loads
 from pathlib import Path
 from shutil import copy2
 from sys import exit, stderr
 
-from .docx import scan_docx, fill_docx_sections
-from .filler import fill_template
 from .md_parser import parse_sections_md
 
 
-def main() -> None:
+def _build_parser() -> ArgumentParser:
     parser = ArgumentParser(description='在模板文件中替换占位符或填充节内容')
     parser.add_argument('--template', '-t', required=True, help='模板文件路径')
     parser.add_argument('--output', '-o', help='输出文件路径（--scan 模式下不需要）')
@@ -48,64 +46,84 @@ def main() -> None:
         help='仅检测标题定位和边界，不修改文件',
     )
     parser.add_argument('--force', '-f', action='store_true', help='覆盖已存在的输出文件')
+    return parser
 
-    args = parser.parse_args()
-    template = Path(args.template)
-    
-    if not template.exists():
-        print(f'错误: 模板不存在: {template}', file=stderr)
-        exit(1)
 
-    # --- 扫描模式 ---
-    if args.scan:
+def _run_scan(template: Path, scan_docx) -> None:
+    """扫描模式：输出模板标题结构和样式信息。"""
+    try:
         scan_docx(template)
-        return
-
-    # 以下模式都需要 --output
-    if not args.output:
-        print('错误: 非扫描模式下 --output 是必需的。', file=stderr)
+    except Exception as e:
+        print(f'错误: 扫描失败: {e}', file=stderr)
         exit(1)
 
-    output = Path(args.output)
-    same_file = template.resolve() == output.resolve()
 
-    # --- 节级填充模式 ---
-    if args.section_data_file:
-        section_path = Path(args.section_data_file)
+def _run_section_fill(args: Namespace,
+                      template: Path,
+                      output: Path,
+                      same_file: bool,
+                      fill_docx_sections) -> None:
+    """节级填充模式：按标题注入段落和图片。"""
+    section_path = Path(args.section_data_file)
+    if not section_path.exists():
+        print(f'错误: 数据文件不存在: {section_path}', file=stderr)
+        exit(1)
 
-        # 按后缀自动判断格式：.md -> Markdown，.json -> JSON
-        if section_path.suffix.lower() == '.md':
-            sections = parse_sections_md(section_path.read_text(encoding='utf-8'))
-        else:
-            with open(section_path, 'r', encoding='utf-8') as f:
+    # 按后缀自动判断格式：.md -> Markdown，.json -> JSON
+    if section_path.suffix.lower() != '.md':
+        with open(section_path, 'r', encoding='utf-8') as f:
+            try:
                 sections = load(f)
-
-        # 同文件 -> 原地修改；不同文件 -> 先复制
-        # dry-run 模式不创建输出文件（只验证定位），直接对模板读取
-        if not same_file and not args.dry_run:
-            if output.exists() and not args.force:
-                print(f'错误: {output} 已存在。使用 --force 覆盖。', file=stderr)
+            except ValueError as e:
+                print(f'错误: JSON 解析失败: {section_path}: {e}', file=stderr)
                 exit(1)
-            if output.exists():
-                output.unlink()
-            output.parent.mkdir(parents=True, exist_ok=True)
-            copy2(template, output)
+    else:
+        sections = parse_sections_md(section_path.read_text(encoding='utf-8'))
 
-        # dry-run 时对模板操作（不修改任何文件）；否则对输出文件操作
-        target = template if args.dry_run else output
+    # 将相对图片路径解析为 section-data-file 所在目录的绝对路径
+    section_dir = section_path.parent
+    for _, items in sections.items():
+        for item in items:
+            if item.get("type") != "image":
+                continue
+
+            p = Path(item["path"])
+            if p.is_absolute():
+                continue
+            
+            item["path"] = str((section_dir / p).resolve())
+
+    # 同文件 -> 原地修改；不同文件 -> 先复制
+    # dry-run 模式不创建输出文件（只验证定位），直接对模板读取
+    if not same_file and not args.dry_run:
+        if output.exists() and not args.force:
+            print(f'错误: {output} 已存在。使用 --force 覆盖。', file=stderr)
+            exit(1)
+        if output.exists():
+            output.unlink()
+        output.parent.mkdir(parents=True, exist_ok=True)
+        copy2(template, output)
+
+    # dry-run 时对模板操作（不修改任何文件）；否则对输出文件操作
+    target = template if args.dry_run else output
+    try:
         count = fill_docx_sections(
             target, sections,
             mode=args.section_mode,
             heading_style=args.heading_style,
             dry_run=args.dry_run,
         )
-        if args.dry_run:
-            print(f'Dry-run on template: {template}')
-        else:
-            print(f'已填充 {count} 个节: {output}')
-        return
+    except Exception as e:
+        print(f'错误: 填充失败: {e}', file=stderr)
+        exit(1)
+    if args.dry_run:
+        print(f'Dry-run on template: {template}')
+    else:
+        print(f'已填充 {count} 个节: {output}')
 
-    # --- 占位符模式 ---
+
+def _run_placeholder_fill(args: Namespace, output: Path, same_file: bool, fill_template) -> None:
+    """占位符模式：替换 {{name}} 等占位符。"""
     if same_file:
         print('错误: --output 不能与 --template 相同。模板填写始终输出到新文件。', file=stderr)
         exit(1)
@@ -119,10 +137,24 @@ def main() -> None:
 
     content_map: dict[str, str] = {}
     if args.data:
-        content_map.update(loads(args.data))
+        try:
+            content_map.update(loads(args.data))
+        except ValueError as e:
+            print(f'错误: --data JSON 解析失败: {e}', file=stderr)
+            exit(1)
+    
     if args.data_file:
-        with open(args.data_file, 'r', encoding='utf-8') as f:
-            content_map.update(load(f))
+        data_file_path = Path(args.data_file)
+        if not data_file_path.exists():
+            print(f'错误: 数据文件不存在: {data_file_path}', file=stderr)
+            exit(1)
+        
+        with open(data_file_path, 'r', encoding='utf-8') as f:
+            try:
+                content_map.update(load(f))
+            except ValueError as e:
+                print(f'错误: JSON 解析失败: {data_file_path}: {e}', file=stderr)
+                exit(1)
 
     for kv in args.set:
         if '=' not in kv:
@@ -135,8 +167,45 @@ def main() -> None:
         print('未提供内容。请使用 --set、--data、--data-file 或 --section-data-file。', file=stderr)
         exit(1)
 
-    result = fill_template(args.template, args.output, content_map, args.pattern)
+    try:
+        result = fill_template(args.template, args.output, content_map, args.pattern)
+    except Exception as e:
+        print(f'错误: 填写失败: {e}', file=stderr)
+        exit(1)
     print(f'已写入: {result}')
+
+
+def main() -> None:
+    try:
+        from .docx import scan_docx, fill_docx_sections
+        from .filler import fill_template
+    except ImportError as e:
+        print(f'错误: 依赖缺失: {e}', file=stderr)
+        exit(1)
+
+    args = _build_parser().parse_args()
+    template = Path(args.template)
+
+    if not template.exists():
+        print(f'错误: 模板不存在: {template}', file=stderr)
+        exit(1)
+
+    if args.scan:
+        _run_scan(template, scan_docx)
+        return
+
+    if not args.output:
+        print('错误: 非扫描模式下 --output 是必需的。', file=stderr)
+        exit(1)
+
+    output = Path(args.output)
+    same_file = template.resolve() == output.resolve()
+
+    if args.section_data_file:
+        _run_section_fill(args, template, output, same_file, fill_docx_sections)
+        return
+
+    _run_placeholder_fill(args, output, same_file, fill_template)
 
 
 if __name__ == '__main__':

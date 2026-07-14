@@ -5,6 +5,7 @@ __pycache__/
 
 # Temp files from extraction
 test/*
+!test/*.txt
 tmp*
 
 # Python virtual environments
