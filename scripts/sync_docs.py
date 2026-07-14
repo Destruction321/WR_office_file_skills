@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# sync_docs.py — 从 opencode 分支生成 claude-code 分支的 CLAUDE.md / README.md
+# sync_docs.py — 从 opencode 分支生成 claude-code 分支的 CLAUDE.md / README.md / .gitignore
 
-从 `refs/heads/opencode` 读取 AGENTS.md / README.md，做机械替换后写入当前分支
+从 `refs/heads/opencode` 读取 AGENTS.md / README.md / .gitignore，做机械替换后写入当前分支
 （应在 `claude-code` 分支上运行）。
 
 替换表见 AGENTS.md "文档生成替换表"小节。新增涉及工具名的文本时，需同步更新
@@ -36,10 +36,8 @@ def _read_opencode_file(rel_path: str) -> str:
 
 # --- 替换表 ---------------------------------------------------------------
 # AGENTS.md -> CLAUDE.md：仅工具名，分支名不动
-# 用 "两个 opencode skills" 而非裸 "opencode skills"——后者会误伤下方替换表
-# 文档里的示例文本。分支名 opencode / claude-code 不替换。
 AGENTS_REPLACEMENTS = [
-    ("两个 opencode skills", "两个 Claude Code skills"),
+    ("opencode skills", "Claude Code skills"),
 ]
 
 # README.md -> README.md：标题、工具名、路径、AI 指引文件名
@@ -49,6 +47,12 @@ README_REPLACEMENTS = [
     ("opencode 技能目录",            "Claude Code 技能目录"),
     ("~/.config/opencode/skills",  "~/.claude/skills"),
     ("├── AGENTS.md",              "├── CLAUDE.md"),
+]
+
+# .gitignore -> .gitignore：项目 AI 配置文件扩展名
+GITIGNORE_REPLACEMENTS = [
+    ("*.opencode",            "*.claude"),
+    ("# opencode",            "# claude"),
 ]
 
 
@@ -72,6 +76,11 @@ def main() -> None:
     readme_out = _apply(readme_src, README_REPLACEMENTS)
     _write(REPO_ROOT / "README.md", readme_out)
     print("Generated README.md from README.md (opencode)")
+
+    gitignore_src = _read_opencode_file(".gitignore")
+    gitignore_out = _apply(gitignore_src, GITIGNORE_REPLACEMENTS)
+    _write(REPO_ROOT / ".gitignore", gitignore_out)
+    print("Generated .gitignore from .gitignore (opencode)")
 
 
 if __name__ == "__main__":

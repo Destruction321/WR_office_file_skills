@@ -31,10 +31,10 @@
 
 仓库维护两个长期分支，职责不同：
 
-| 分支          | 内容                                                                                            |
-| ------------- | ----------------------------------------------------------------------------------------------- |
-| `opencode`    | 全部改动：代码 + 文档（`.md`、`README.md`、`AGENTS.md`、`docs/`）+ `.gitignore`                 |
-| `claude-code` | 仅 `.py` 代码同步；`CLAUDE.md` / `README.md` 由 `scripts/sync_docs.py` 从 opencode 对应文件生成 |
+| 分支          | 内容                                                                                           |
+| ------------- | ---------------------------------------------------------------------------------------------- |
+| `opencode`    | 全部改动：代码 + 文档（`.md`、`README.md`、`AGENTS.md`、`docs/`）+ `.gitignore`                |
+| `claude-code` | 仅`.py` 代码同步；`CLAUDE.md` / `README.md` / `.gitignore` 由 `scripts/sync_docs.py` 从 opencode 对应文件生成 |
 
 ### 提交流程
 
@@ -44,8 +44,8 @@
    ```bash
    git checkout claude-code
    git checkout refs/heads/opencode -- <path1>.py <path2>.py ...   # 逐个或批量同步 .py
-   python scripts/sync_docs.py                                     # 从 opencode 生成 CLAUDE.md + README.md
-   git add CLAUDE.md README.md
+   python scripts/sync_docs.py                                     # 从 opencode 生成 CLAUDE.md + README.md + .gitignore
+   git add CLAUDE.md README.md .gitignore
    git commit -m "sync code from opencode: <概述>"
    git push origin claude-code
    git checkout opencode                                           # 切回默认分支
@@ -66,11 +66,12 @@
 
 | opencode（源）              | claude-code（生成）    | 说明              |
 | --------------------------- | ---------------------- | ----------------- |
-| `opencode skills`（散文）   | `Claude Code skills`   | 工具名            |
+| `Claude Code skills`（散文）   | `Claude Code skills`   | 工具名            |
 | `# OpenCode Skills`         | `# Claude Skills`      | README 标题       |
 | `OpenCode 技能集合`         | `Claude Code 技能集合` | README 副标题     |
 | `opencode 技能目录`         | `Claude Code 技能目录` | 安装注释          |
 | `~/.config/opencode/skills` | `~/.claude/skills`     | 安装路径 + 结构树 |
 | `├── AGENTS.md`（结构树）   | `├── CLAUDE.md`        | AI 指引文件名     |
+| *.opencode                  | *.claude               | 项目 AI 配置文件  |
 
 > **注意**：分支名 `opencode` / `claude-code`（git 命令、表格中的分支引用）**不做替换**——两个分支共用同一套分支名。仅在散文中指代工具名时替换。新增涉及工具名的文本时，需同步更新此表。
