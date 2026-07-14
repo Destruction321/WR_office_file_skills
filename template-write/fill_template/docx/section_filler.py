@@ -3,7 +3,7 @@
 
 **核心原则**：文本匹配定位 + 样式名定义界。不推断标题级别。
 **工具只做机械操作**：定位标题 -> 确定边界 -> 清除旧内容 -> 插入新内容 -> 验证。
-智能判断由 Claude 通过 --scan 输出完成。
+智能判断由 Agent 通过 --scan 输出完成。
 
 ## 标题定位：
 1. 全局定位："实验过程及分析" — 全文搜索第一个匹配段落
@@ -19,23 +19,16 @@ from pathlib import Path
 from sys import stderr
 from typing import Any
 
-from . import scanner
+from . import elements, locator, scanner
 from ..deps import ensure_import
 
-_SCOPE_SEP = ' / '
-
-@dataclass
-class _LocateContext:
-    children: list[Any]
-    qn: Any
-    hs_lower: str | None = None
 
 @dataclass
 class _FillSession:
     Inches: Any
     body: Any
     doc: Any
-    locate_ctx: _LocateContext
+    locate_ctx: locator.LocateContext
 
 
 # ===================================================================
@@ -86,7 +79,7 @@ def fill_docx_sections(doc_path: Path,
     for heading_text, items in sections.items():
         session.locate_ctx.children = list(session.body)
 
-        loc = _locate_section(session.locate_ctx, heading_text)
+        loc = locator.locate_section(session.locate_ctx, heading_text)
         if loc is None:
             missed.append(heading_text)
             continue
@@ -105,15 +98,15 @@ def fill_docx_sections(doc_path: Path,
 
         # 清除旧内容（replace 模式）—— 清除后索引移位，需重新定位标题作锚点
         if mode == "replace":
-            _remove_elements_between(session.body, session.locate_ctx.children, heading_idx, end_idx)
-            heading_idx = _find_heading_index_scoped(session.locate_ctx, heading_text)
+            elements.remove_elements_between(session.body, session.locate_ctx.children, heading_idx, end_idx)
+            heading_idx = locator.find_heading_index_scoped(session.locate_ctx, heading_text)
             if heading_idx is None:
                 missed.append(heading_text)
                 continue
 
         # 插入新内容
         anchor = session.locate_ctx.children[heading_idx]
-        para_count, img_count = _insert_items(session.doc, anchor, items, Inches=session.Inches)
+        para_count, img_count = elements.insert_items(session.doc, anchor, items, Inches=session.Inches)
 
         filled_count += 1
         filled_summary.append((heading_text, para_count, img_count))
@@ -139,174 +132,8 @@ def fill_docx_sections(doc_path: Path,
 
 
 # ===================================================================
-#  定位
+#  会话与验证
 # ===================================================================
-
-def _locate_section(locate_ctx: _LocateContext, heading_text: str) -> tuple[int, int | None] | None:
-    """
-    定位 (heading_idx, end_idx)：先查标题索引，再以该标题样式算节边界。
-
-    全局定位："标题文本"；限定定位："父标题 / 子标题"。
-    标题索引查找共用 `_find_heading_index_scoped`，与 replace 后重定位一致。
-    """
-    heading_idx = _find_heading_index_scoped(locate_ctx, heading_text)
-    if heading_idx is None:
-        return None
-
-    end_idx = _find_style_boundary(
-        locate_ctx,
-        heading_idx,
-        scanner.get_style_name(locate_ctx.children[heading_idx], locate_ctx.qn)
-    )
-    return heading_idx, end_idx
-
-
-def _find_heading_index_scoped(locate_ctx: _LocateContext, heading_text: str) -> int | None:
-    """按标题文本查找段落索引，支持限定定位语法。
-
-    - 全局："标题文本" -> 全文找第一个匹配段落。
-    - 限定："父标题 / 子标题" -> 先找父标题，再在其后找子标题
-      （不限制 parent_end，因父子可能同样式，样式边界无法区分）。
-
-    Returns:
-        int | None: 标题段落在 children 中的索引，未找到返回 None。
-    """
-    parent_text, sep, child_text = heading_text.partition(_SCOPE_SEP)
-    if not sep:
-        return _find_heading_index(locate_ctx, parent_text)
-
-    parent_idx = _find_heading_index(locate_ctx, parent_text)
-    if parent_idx is None:
-        return None
-    return _find_heading_index(locate_ctx, child_text.strip(), start=parent_idx + 1)
-
-
-def _find_heading_index(locate_ctx: _LocateContext, text: str, start: int = 0) -> int | None:
-    """在 children[start:len(children)] 范围内找到包含 text 的段落，返回索引。大小写不敏感。"""
-    text_lower = text.strip().lower()
-    end = len(locate_ctx.children)
-    for i in range(start, end):
-        child = locate_ctx.children[i]
-        if child.tag != locate_ctx.qn("w:p"):
-            continue
-        
-        if text_lower in scanner.text_of(child, locate_ctx.qn).lower():
-            return i
-    
-    return None
-
-
-def _find_style_boundary(locate_ctx: _LocateContext,
-                         heading_idx: int,
-                         heading_style: str) -> int | None:
-    """找到 heading_idx 之后第一个同级标题段落，返回其索引。
-
-    边界判定：
-    - 与目标标题相同样式名的段落 -> 边界
-    - 用户指定 --heading-style 的段落 -> 边界
-    - Word 内置 Heading 样式的段落 -> 边界（当原标题不是内置样式时）
-    """
-    search_end = len(locate_ctx.children)
-    hs_lower_local = heading_style.lower() if heading_style else ""
-    is_builtin = hs_lower_local.startswith("heading")
-
-    for i in range(heading_idx + 1, search_end):
-        child = locate_ctx.children[i]
-        if child.tag != locate_ctx.qn("w:p"):
-            continue
-
-        style_lower = scanner.get_style_name(child, locate_ctx.qn).lower()
-
-        # 相同样式名 -> 同级标题 -> 边界
-        if hs_lower_local and style_lower == hs_lower_local:
-            return i
-        
-        # 用户指定的 heading_style -> 边界
-        if locate_ctx.hs_lower and style_lower == locate_ctx.hs_lower:
-            return i
-        
-        # Word 内置 Heading -> 边界（当原样式不是内置样式时）
-        if not is_builtin and style_lower.startswith("heading"):
-            return i
-
-    return None
-
-
-# ===================================================================
-#  元素操作
-# ===================================================================
-
-def _remove_elements_between(body, children, start: int, end: int | None):
-    """删除 body 中 (start, end) 之间的所有子元素。"""
-    actual_end = end if end is not None else len(children)
-    for i in range(actual_end - 1, start, -1):
-        body.remove(children[i])
-
-
-def _insert_items(doc, anchor, items: list[dict[str, Any]], *, Inches) -> tuple[int, int]:
-    """
-    将内容项逐个构建为段落，用 addnext 链式插入到 anchor 之后。
-
-    - image 项走 `_build_image_para`，其余走 `_build_text_para`。
-    - 每次插入后把 anchor 前移到新段落，保证顺序与 items 一致。
-    """
-    para_count = 0
-    img_count = 0
-    for item in items:
-        if item.get("type") == "image":
-            p = _build_image_para(doc, item, Inches)
-            img_count += 1
-        
-        else:
-            p = _build_text_para(doc, item)
-            para_count += 1
-        anchor.addnext(p)
-        anchor = p
-    
-    return para_count, img_count
-
-
-def _build_image_para(doc, item: dict[str, Any], Inches):
-    """构建内嵌图片段落。"""
-    image_path = Path(item["path"])
-    if not image_path.exists():
-        p = doc.add_paragraph()
-        run = p.add_run()
-        run.text = f"[Image not found: {image_path.name}]"
-        run.bold = True
-        p._element.getparent().remove(p._element)
-        return p._element
-
-    width = item.get("width_inches", 5.5)
-    p = doc.add_paragraph()
-    run = p.add_run()
-    run.add_picture(str(image_path), width=Inches(width))
-    p._element.getparent().remove(p._element)
-    return p._element
-
-
-def _build_text_para(doc, item: dict[str, Any]):
-    """构建文本段落。支持 runs 格式（行内加粗/斜体）和旧 text/bold 格式。"""
-    p = doc.add_paragraph()
-
-    if "runs" in item:
-        for run_spec in item["runs"]:
-            run = p.add_run()
-            run.text = run_spec.get("text", "")
-            if run_spec.get("bold"):
-                run.bold = True
-            if run_spec.get("italic"):
-                run.italic = True
-    
-    else:
-        run = p.add_run()
-        run.text = item.get("text", "")
-        if item.get("bold"):
-            run.bold = True
-
-    p._element.getparent().remove(p._element)
-    return p._element
-
 
 def _open_fill_session(doc_path: Path, heading_style: str | None = None) -> _FillSession:
     """打开 docx 填充会话，返回 _FillSession 对象。"""
@@ -316,7 +143,7 @@ def _open_fill_session(doc_path: Path, heading_style: str | None = None) -> _Fil
     doc = Document(str(doc_path))
     body = doc.element.body
     hs_lower = heading_style.lower() if heading_style else None
-    locate_ctx = _LocateContext(children=list(body), qn=qn, hs_lower=hs_lower)
+    locate_ctx = locator.LocateContext(children=list(body), qn=qn, hs_lower=hs_lower)
     return _FillSession(Inches=Inches, body=body, doc=doc, locate_ctx=locate_ctx)
 
 
@@ -338,7 +165,7 @@ def _verify_filled(doc_path: Path,
     all_child_texts: list[str] = []  # 所有子标题文本（小写），按顺序
     heading_keys: dict[str, list[str]] = {}  # child_text -> [orig_key1, orig_key2, ...]
     for ht in sections:
-        _, sep, child = ht.partition(_SCOPE_SEP)
+        _, sep, child = ht.partition(locator.SCOPE_SEP)
         key = child.strip() if sep else ht.strip()
         heading_keys.setdefault(key.lower(), []).append(ht)
         all_child_texts.append(key.lower())
@@ -351,7 +178,7 @@ def _verify_filled(doc_path: Path,
     # 构建 ordered_keys 列表
     ordered_keys: list[str] = []
     for ht in sections:
-        _, sep, child = ht.partition(_SCOPE_SEP)
+        _, sep, child = ht.partition(locator.SCOPE_SEP)
         key = child.strip() if sep else ht.strip()
         ordered_keys.append(ht)
     ptr = 0  # 指向 ordered_keys 中下一个待匹配的标题
@@ -364,7 +191,7 @@ def _verify_filled(doc_path: Path,
         # 检查是否匹配某个待匹配的标题
         matched = False
         if ptr < len(ordered_keys):
-            _, sep, child = ordered_keys[ptr].partition(_SCOPE_SEP)
+            _, sep, child = ordered_keys[ptr].partition(locator.SCOPE_SEP)
             key = child.strip() if sep else ordered_keys[ptr].strip()
             if key.lower() in p_text.lower():
                 active_section = ordered_keys[ptr]
