@@ -49,10 +49,10 @@ _P="$(pwd)" && cd ~/.config/opencode/skills/read_documents && python -m extract_
 | Format  | Text                          | Assets                             | Notes                   |
 | ------- | ----------------------------- | ---------------------------------- | ----------------------- |
 | `.docx` | `python-docx`                 | `word/media/` + `word/embeddings/` | Pure Python (no Office) |
-| `.doc`  | `python-docx` -> COM fallback | ZIP/XML or **NO**                  | COM needs Office (Win)  |
+| `.doc`  | `python-docx` -> COM fallback | ZIP/XML or**NO**                   | COM needs Office (Win)  |
 | `.pptx` | `python-pptx`                 | `ppt/media/` + `ppt/embeddings/`   | Pure Python (no Office) |
 | `.ppt`  | COM via PowerShell            | **NO**                             | COM needs Office (Win)  |
-| `.pdf`  | `pdfplumber` -> `PyPDF2`      | PyMuPDF per-page                   | Pure Python (no Office) |
+| `.pdf`  | `PyMuPDF`                     | PyMuPDF per-page                   | Pure Python (no Office) |
 | `.xlsx` | `openpyxl`                    | `xl/media/`                        | Pure Python (no Office) |
 | `.xls`  | `xlrd` -> COM fallback        | **NO**                             | COM needs Office (Win)  |
 
@@ -140,12 +140,12 @@ _P="$(pwd)" && cd ~/.config/opencode/skills/read_documents && python -m extract_
 
 ## Parameters
 
-| Flag                | Mode   | Description                                  |
-| ------------------- | ------ | -------------------------------------------- |
-| `--root PATH`       | SEARCH | ASCII-safe ancestor directory                |
-| `--glob STR`        | SEARCH | Case-insensitive substring match             |
-| `--paths-file PATH` | DIRECT | UTF-8 file, one path per line                |
-| `--section STR`     | both   | Only extract matching section                |
-| `--list-only`       | SEARCH | List files, skip extraction                  |
-| `--assets-dir PATH` | both   | Extract assets (use `$_P/...` absolute path) |
-| `--max-depth N`     | SEARCH | Max directory depth (default 6)              |
+| Flag                | Mode   | Description                                 |
+| ------------------- | ------ | ------------------------------------------- |
+| `--root PATH`       | SEARCH | ASCII-safe ancestor directory               |
+| `--glob STR`        | SEARCH | Case-insensitive substring match            |
+| `--paths-file PATH` | DIRECT | UTF-8 file, one path per line               |
+| `--section STR`     | both   | Only extract matching section               |
+| `--list-only`       | SEARCH | List files, skip extraction                 |
+| `--assets-dir PATH` | both   | Extract assets (use`$_P/...` absolute path) |
+| `--max-depth N`     | SEARCH | Max directory depth (default 6)             |
