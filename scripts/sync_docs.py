@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-# sync_docs.py — 从 opencode 分支生成 claude-code 分支的 CLAUDE.md / README.md
+# sync_docs.py — 从 opencode 分支生成 claude-code 分支的 CLAUDE.md / README.md / .gitignore
 
-从 `refs/heads/opencode` 读取 AGENTS.md / README.md，做机械替换后写入当前分支
+从 `refs/heads/opencode` 读取 AGENTS.md / README.md / .gitignore，做机械替换后写入当前分支
 （应在 `claude-code` 分支上运行）。
 
 替换表见 AGENTS.md "文档生成替换表"小节。新增涉及工具名的文本时，需同步更新
@@ -49,6 +49,11 @@ README_REPLACEMENTS = [
     ("├── AGENTS.md",              "├── CLAUDE.md"),
 ]
 
+# .gitignore -> .gitignore：项目 AI 配置文件扩展名
+GITIGNORE_REPLACEMENTS = [
+    ("*.opencode", "*.claude"),
+]
+
 
 def _apply(text: str, replacements: list[tuple[str, str]]) -> str:
     for old, new in replacements:
@@ -70,6 +75,11 @@ def main() -> None:
     readme_out = _apply(readme_src, README_REPLACEMENTS)
     _write(REPO_ROOT / "README.md", readme_out)
     print("Generated README.md from README.md (opencode)")
+
+    gitignore_src = _read_opencode_file(".gitignore")
+    gitignore_out = _apply(gitignore_src, GITIGNORE_REPLACEMENTS)
+    _write(REPO_ROOT / ".gitignore", gitignore_out)
+    print("Generated .gitignore from .gitignore (opencode)")
 
 
 if __name__ == "__main__":
