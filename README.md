@@ -63,7 +63,7 @@ Claude Code 技能集合 —— 增强 AI 对文档文件的读写能力。
 git clone https://github.com/Destruction321/WR_office_file_skills.git ~/.claude/skills
 
 # 安装全部依赖（如需）
-pip install python-docx python-pptx pdfplumber PyMuPDF openpyxl chardet olefile xlrd
+pip install python-docx python-pptx PyMuPDF openpyxl chardet olefile xlrd
 ```
 
 > 各 skill 首次使用时若发现缺失包会自动安装，无需手动预装。
