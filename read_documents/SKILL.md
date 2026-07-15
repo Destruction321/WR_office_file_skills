@@ -81,6 +81,52 @@ _P="$(pwd)" && cd ~/.config/opencode/skills/read_documents && python -m extract_
 
 ---
 
+## Complex page rendering (PDF only)
+
+PDF pages with complex layouts (flowcharts, diagrams, multi-column graphics) produce garbled text. Two layers handle this:
+
+### Layer 1: Auto-detection (code heuristic)
+
+When `--assets-dir` is provided, pages with high text fragmentation (blocks>10, ≥40% short blocks <5 chars, x-spread >50% page width, no tables) are **automatically rendered as PNG** at 150 DPI. The text output shows:
+
+```txt
+--- Page 11 ---
+
+[此页为复杂排版，已渲染为图片（图片: pages/page_11.png）]
+[meta] blocks=20 avg_len=12 short=8 tables=0 x_spread=83%
+```
+
+Pages with tables are **never** auto-rendered — structured table data is more valuable than an image. The x-spread condition excludes directory/index pages (narrow column) from false positives.
+
+### Layer 2: AI on-demand (`--render-page`)
+
+Every page includes `[meta]` metadata at the end. If you (the AI) judge a page needs rendering that Layer 1 missed, re-run with `--render-page`:
+
+```bash
+_P="$(pwd)" && cd ~/.config/opencode/skills/read_documents && python -m extract_files \
+  --paths-file "$_P/temp/tmp_targets.txt" \
+  --assets-dir "$_P/temp/assets" \
+  --render-page 7 14
+```
+
+This forces the specified pages (1-based) to render as images, **overriding** the table exclusion. Requires `--assets-dir`.
+
+### Meta format
+
+```txt
+[meta] blocks=N avg_len=M short=K tables=T x_spread=PP%
+```
+
+| Field      | Meaning                                     |
+| ---------- | ------------------------------------------- |
+| `blocks`   | Merged text block count                     |
+| `avg_len`  | Average text length per block               |
+| `short`    | Blocks with <5 chars (fragmentation)        |
+| `tables`   | Table count on this page                    |
+| `x_spread` | Text x-coordinate spread as % of page width |
+
+---
+
 ## Modes
 
 | Situation                 | Mode                     | Flags                                    |
@@ -140,12 +186,13 @@ _P="$(pwd)" && cd ~/.config/opencode/skills/read_documents && python -m extract_
 
 ## Parameters
 
-| Flag                | Mode   | Description                                 |
-| ------------------- | ------ | ------------------------------------------- |
-| `--root PATH`       | SEARCH | ASCII-safe ancestor directory               |
-| `--glob STR`        | SEARCH | Case-insensitive substring match            |
-| `--paths-file PATH` | DIRECT | UTF-8 file, one path per line               |
-| `--section STR`     | both   | Only extract matching section               |
-| `--list-only`       | SEARCH | List files, skip extraction                 |
-| `--assets-dir PATH` | both   | Extract assets (use`$_P/...` absolute path) |
-| `--max-depth N`     | SEARCH | Max directory depth (default 6)             |
+| Flag                      | Mode   | Description                                          |
+| ------------------------- | ------ | ---------------------------------------------------- |
+| `--root PATH`             | SEARCH | ASCII-safe ancestor directory                        |
+| `--glob STR`              | SEARCH | Case-insensitive substring match                     |
+| `--paths-file PATH`       | DIRECT | UTF-8 file, one path per line                        |
+| `--section STR`           | both   | Only extract matching section                        |
+| `--list-only`             | SEARCH | List files, skip extraction                          |
+| `--assets-dir PATH`       | both   | Extract assets (use `$_P/...` absolute path)         |
+| `--render-page N [N ...]` | DIRECT | Force-render PDF pages as images (1-based, PDF only) |
+| `--max-depth N`           | SEARCH | Max directory depth (default 6)                      |
