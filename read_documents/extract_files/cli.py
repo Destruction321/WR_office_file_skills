@@ -26,6 +26,12 @@ def main() -> None:
     # --- 通用选项 ---
     parser.add_argument('--section', help='只提取匹配此关键字的小节')
     parser.add_argument('--assets-dir', help='将嵌入资源提取到此目录')
+    parser.add_argument(
+        '--render-page',
+        type=int,
+        nargs='+',
+        help='将指定页码（1-based）渲染为图片（仅 PDF，需配合 --assets-dir）',
+    )
 
     args = parser.parse_args()
 
@@ -81,7 +87,9 @@ def main() -> None:
         all_lines.append(f'{"=" * 60}')
         all_lines.append('')
         try:
-            lines = extract_file(filepath, assets_dir=args.assets_dir)
+            lines = extract_file(
+                filepath, assets_dir=args.assets_dir, render_pages=args.render_page,
+            )
             # 逐文件过滤小节，避免跨文件标记互相干扰
             if args.section:
                 lines = filter_section(lines, args.section)

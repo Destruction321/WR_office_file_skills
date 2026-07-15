@@ -24,13 +24,16 @@ EXTRACTORS = {
     '.pdf': extract_pdf,
 }
 
-def extract_file(filepath: str, assets_dir: str | None = None) -> list[str]:
+def extract_file(filepath: str,
+                 assets_dir: str | None = None,
+                 render_pages: list[int] | None = None) -> list[str]:
     """
     ## 从单个文档文件中提取文本，按扩展名分发。
 
     Args:
         filepath (str): 文档文件路径。
         assets_dir (str | None): 资源提取目标目录（可选）。
+        render_pages (list[int] | None): 强制渲染为图片的页码列表（仅 PDF，1-based）。
 
     Returns:
         list[str]: 提取出的文本行。出错时返回含 `[Error ...]` 的单行列表。
@@ -40,7 +43,10 @@ def extract_file(filepath: str, assets_dir: str | None = None) -> list[str]:
     handler = EXTRACTORS.get(fp.suffix.lower())
     if handler is None:
         return _extract_plain_text(fp)
-    
+
+    # 目前只有 PDF 支持 render_pages
+    if fp.suffix.lower() == '.pdf' and render_pages:
+        return handler(fp, ad, render_pages=render_pages)
     return handler(fp, ad)
 
 
