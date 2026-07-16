@@ -8,18 +8,35 @@
 - 支持 --render-page 按需渲染指定页为图片（第二层 AI 判断）。
 """
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .common import ExtractJob
 from .. import assets
 from ..deps import ensure_import
 
-type _TextBlock = list[tuple[float, float, float, str, float]]
+
+@dataclass(frozen=True)
+class _TextBlock:
+    """
+    PDF 文字块快照：(x0, y0, y1, text, font_h)。
+    
+    Attributes:
+        x0 (float): 块左上角 x 坐标。
+        y0 (float): 块左上角 y 坐标。
+        y1 (float): 块右下角 y 坐标。
+        text (str): 块内文字。
+        font_h (float): 块内最大字号。
+    """
+    x0: float
+    y0: float
+    y1: float
+    text: str
+    font_h: float
 
 
-def extract_pdf(filepath: Path,
-                assets_dir: Path | None = None,
-                render_pages: list[int] | None = None) -> list[str]:
+def extract_pdf(job: ExtractJob) -> list[str]:
     """
     ## 通过 `PyMuPDF` 提取 PDF 文本和表格，保留阅读顺序。
 
@@ -32,13 +49,12 @@ def extract_pdf(filepath: Path,
     - 如有资产提取要求，一并提取 PDF 中的图片。
 
     Args:
-        filepath (Path): PDF 文件路径。
-        assets_dir (Path | None): 资源提取目标目录（可选）；图片也存于此。
-        render_pages (list[int] | None): 强制渲染为图片的页码列表（1-based）。
+        job (ExtractJob): 提取作业参数。
 
     Returns:
         lines (list[str]): 提取出的文本行，失败时返回错误信息。
     """
+    filepath, assets_dir, render_pages = job.filepath, job.assets_dir, job.render_pages
     lines: list[str] = []
     assets_result: dict[str, list[str]] = {}
     images_dir: Path | None = None
@@ -105,12 +121,12 @@ def _extract_page(page,
 
     # 4. 计算元数据
     n_blocks = len(merged)
-    avg_len = sum(len(b[3]) for b in merged) / n_blocks if n_blocks else 0
-    short_blocks = sum(1 for b in merged if len(b[3]) < 5)
+    avg_len = sum(len(b.text) for b in merged) / n_blocks if n_blocks else 0
+    short_blocks = sum(1 for b in merged if len(b.text) < 5)
     short_ratio = short_blocks / n_blocks if n_blocks else 0
     n_tables = len(table_list)
     page_width = page.rect.width
-    x_spread = (max(b[1] for b in merged) - min(b[1] for b in merged)) if n_blocks >= 2 else 0
+    x_spread = (max(b.x0 for b in merged) - min(b.x0 for b in merged)) if n_blocks >= 2 else 0
     x_ratio = x_spread / page_width if page_width > 0 else 0
     meta = (
         f'blocks={n_blocks} avg_len={avg_len:.0f} short={short_blocks} '
@@ -129,8 +145,8 @@ def _extract_page(page,
 
     # 6-7. 收集内容项并按 y 坐标排序
     items: list[tuple[float, str, Any]] = []
-    for y0, _, _, text, _ in merged:
-        items.append((y0, 'text', text))
+    for b in merged:
+        items.append((b.y0, 'text', b.text))
     for t_idx, table in enumerate(table_list):
         items.append((table.bbox[1], 'table', (t_idx, table)))
     items.sort(key=lambda item: item[0])
@@ -140,54 +156,51 @@ def _extract_page(page,
     return page_lines, meta
 
 
-def _collect_text_blocks(page, table_bboxes: list) -> _TextBlock:
+def _collect_text_blocks(page, table_bboxes: list) -> list[_TextBlock]:
     """
     从页面 dict 中收集文字块，剔除图片块和表格区域内文字。
-
-    Returns:
-        (x0, y0, y1, text, font_h) 列表 — font_h 为块内最大字号。
     """
-    text_blocks: _TextBlock = []
+    text_blocks: list[_TextBlock] = []
     for b in page.get_text("dict", sort=True)["blocks"]:
         if b.get("type", 0) == 1:  # image block
             continue
+        
         x0, y0, x1, y1 = b["bbox"]
         text = "".join(
             span["text"]
             for line in b.get("lines", [])
             for span in line.get("spans", [])
         ).strip()
+        
         if not text:
             continue
         if _in_table_bbox((x0, y0, x1, y1), table_bboxes):
             continue
+        
         font_h = max(
             (span["size"] for line in b.get("lines", []) for span in line.get("spans", [])),
             default=(y1 - y0),
         )
-        text_blocks.append((x0, y0, y1, text, font_h))
+        text_blocks.append(_TextBlock(x0, y0, y1, text, font_h))
+    
     return text_blocks
 
 
-def _merge_text_blocks(text_blocks: _TextBlock) -> _TextBlock:
+def _merge_text_blocks(text_blocks: list[_TextBlock]) -> list[_TextBlock]:
     """
     合并纵向相邻的文字块为段落（同列、y 间距小于字高倍数）。
-
-    动态阈值：缩进容差 2.5 倍字号，行间距 1.5 倍字号。
-
-    Returns:
-        (y0, x0, y1, text, font_h) 列表。
+    - 动态阈值：缩进容差 2.5 倍字号，行间距 1.5 倍字号。
     """
-    text_blocks.sort(key=lambda b: (b[1], b[0]))
-    merged: _TextBlock = []
-    for x0, y0, y1, text, font_h in text_blocks:
+    text_blocks.sort(key=lambda b: (b.y0, b.x0))
+    merged: list[_TextBlock] = []
+    for b in text_blocks:
         if merged:
-            py0, px0, py1, _, pfont_h = merged[-1]
-            ref_h = max(font_h, pfont_h)
-            if abs(x0 - px0) < ref_h * 2.5 and 0 < y0 - py1 < ref_h * 1.5:
-                merged[-1] = (py0, px0, y1, merged[-1][3] + text, pfont_h)
+            prev = merged[-1]
+            ref_h = max(b.font_h, prev.font_h)
+            if abs(b.x0 - prev.x0) < ref_h * 2.5 and 0 < b.y0 - prev.y1 < ref_h * 1.5:
+                merged[-1] = _TextBlock(prev.x0, prev.y0, b.y1, prev.text + b.text, prev.font_h)
                 continue
-        merged.append((y0, x0, y1, text, font_h))
+        merged.append(b)
     return merged
 
 
@@ -211,6 +224,7 @@ def _render_items(items: list[tuple[float, str, Any]]) -> list[str]:
                 ]
                 page_lines.append('| ' + ' | '.join(cells) + ' |')
             page_lines.append('')
+    
     return page_lines
 
 

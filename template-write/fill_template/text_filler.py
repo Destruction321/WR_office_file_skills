@@ -8,30 +8,26 @@
 from locale import getdefaultlocale
 from os import name
 from pathlib import Path
-from re import Pattern, Match
 
 from .deps import ensure_import
+from .replacer import Replacer
 
 
-def fill_text(template_path: Path,
-              output_path: Path,
-              content_map: dict[str, str],
-              pattern: Pattern[str]) -> None:
+def fill_text(template_path: Path, output_path: Path, replacer: Replacer) -> None:
     """
     ## 在纯文本模板文件中替换占位符。
 
     Args:
         template_path (Path): 源模板文件路径。
         output_path (Path): 输出文件路径。
-        content_map (dict[str, str]): 占位符名称到替换文本的映射。
-        pattern (Pattern[str]): 占位符正则。
+        replacer (Replacer): 占位符替换器（content_map + pattern）。
     """
     encoding = _detect_encoding(template_path)
 
     with open(template_path, 'r', encoding=encoding) as f:
         content = f.read()
 
-    content = _replace_all(content, content_map, pattern)
+    content = replacer.replace(content)
 
     # Windows 中文系统：写 UTF-8 BOM 避免 Excel 打开乱码
     use_bom = _needs_bom()
@@ -50,7 +46,7 @@ def _detect_encoding(path: Path) -> str:
             raw = f.read(4096)
         result = detect(raw)
         return result.get('encoding') or 'utf-8'
-    
+
     except ImportError:
         # chardet 不可用时，根据系统区域猜测
         try:
@@ -69,12 +65,3 @@ def _needs_bom() -> bool:
         return bool(lang and 'zh' in lang)
     except Exception:
         return False
-
-
-def _replace_all(text: str, content_map: dict[str, str], pattern: Pattern[str]) -> str:
-    """将 text 中所有占位符替换为 content_map 中的值。"""
-    def replacer(match: Match[str]) -> str:
-        name = match.group(1)
-        return content_map.get(name, match.group(0))
-
-    return pattern.sub(replacer, text)

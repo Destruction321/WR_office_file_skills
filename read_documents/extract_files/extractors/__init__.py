@@ -2,12 +2,13 @@
 # 格式分发器 — 按扩展名派发到各格式模块。
 
 - 公开 API:
-  1. extract_file(filepath, assets_dir=None) -> list[str]
+  1. extract_file(filepath, assets_dir=None, render_pages=None) -> list[str]
   2. EXTRACTORS — 格式扩展名 -> 处理函数映射
 """
 
 from pathlib import Path
 
+from .common import ExtractJob
 from .docx_extractor import extract_doc, extract_docx
 from .pdf_extractor import extract_pdf
 from .pptx_extractor import extract_ppt, extract_pptx
@@ -39,15 +40,12 @@ def extract_file(filepath: str,
         list[str]: 提取出的文本行。出错时返回含 `[Error ...]` 的单行列表。
     """
     fp = Path(filepath)
-    ad = Path(assets_dir) if assets_dir else None
     handler = EXTRACTORS.get(fp.suffix.lower())
     if handler is None:
         return _extract_plain_text(fp)
 
-    # 目前只有 PDF 支持 render_pages
-    if fp.suffix.lower() == '.pdf' and render_pages:
-        return handler(fp, ad, render_pages=render_pages)
-    return handler(fp, ad)
+    job = ExtractJob(fp, Path(assets_dir) if assets_dir else None, render_pages)
+    return handler(job)
 
 
 def _extract_plain_text(filepath: Path) -> list[str]:

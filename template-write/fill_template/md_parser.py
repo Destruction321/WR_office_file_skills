@@ -16,7 +16,8 @@
 """
 
 from re import compile
-from typing import Any
+
+from . import items
 
 # 标题行：1-6 个 # 开头
 _HEADING_RE = compile(r'^(#{1,6})\s+(.+)$')
@@ -31,7 +32,7 @@ _INLINE_RE = compile(r'(\*\*.+?\*\*|\*.+?\*)')
 _LIST_ITEM_RE = compile(r'^(\d+\.\s|[-*]\s)')
 
 
-def parse_sections_md(md_text: str) -> dict[str, list[dict[str, Any]]]:
+def parse_sections_md(md_text: str) -> dict[str, list[items.Item]]:
     """
     ## 将 Markdown 文本解析为节标题 -> 内容项列表的映射。
 
@@ -42,11 +43,11 @@ def parse_sections_md(md_text: str) -> dict[str, list[dict[str, Any]]]:
         md_text (str): Markdown 文本。
 
     Returns:
-        sections (dict[str, list[dict[str, Any]]]): 标题文本 -> 内容项列表。
+        sections (dict[str, list[items.Item]]): 标题文本 -> 内容项列表。
     """
-    sections: dict[str, list[dict[str, Any]]] = {}
+    sections: dict[str, list[items.Item]] = {}
     current_heading: str | None = None
-    current_items: list[dict[str, Any]] = []
+    current_items: list[items.Item] = []
     pending_lines: list[str] = []
 
     for line in md_text.splitlines():
@@ -59,7 +60,7 @@ def parse_sections_md(md_text: str) -> dict[str, list[dict[str, Any]]]:
             pending_lines = []
             if current_heading is not None:
                 sections[current_heading] = current_items
-            
+
             current_heading = heading_match.group(2).strip()
             current_items = []
             continue
@@ -75,11 +76,10 @@ def parse_sections_md(md_text: str) -> dict[str, list[dict[str, Any]]]:
         if img_match:
             _flush_pending(pending_lines, current_items)
             pending_lines = []
-            item: dict[str, Any] = {"type": "image", "path": img_match.group(1)}
-            if img_match.group(2):
-                item["width_inches"] = float(img_match.group(2))
-            
-            current_items.append(item)
+            current_items.append(items.ImageItem(
+                path=img_match.group(1),
+                width_inches=float(img_match.group(2)) if img_match.group(2) else None,
+            ))
             continue
 
         # 列表项 -> 独立成段（每个列表项一个段落）
@@ -99,41 +99,35 @@ def parse_sections_md(md_text: str) -> dict[str, list[dict[str, Any]]]:
     return sections
 
 
-def _flush_pending(lines: list[str], items: list[dict[str, Any]]) -> None:
+def _flush_pending(lines: list[str], current_items: list[items.Item]) -> None:
     """将收集到的文本行合并为一个段落项，追加到 items。"""
     if not lines:
         return
     # 同一段内的连续行用空格连接
     full_text = ' '.join(lines)
     runs = _parse_inline(full_text)
-    items.append({"type": "paragraph", "runs": runs})
+    current_items.append(items.ParagraphItem(runs=runs))
 
 
-def _parse_inline(text: str) -> list[dict[str, Any]]:
+def _parse_inline(text: str) -> list[items.Run]:
     """
-    ## 解析 **bold** 和 *italic* 行内格式为 run 列表。
+    解析 **bold** 和 *italic* 行内格式为 Run 列表。
 
-    - `**bold**` -> `{"text": "bold", "bold": True}`
-    - `*italic*` -> `{"text": "italic", "italic": True}`
-    - 普通文本 -> `{"text": "..."}`
-
-    Args:
-        text (str): 包含行内格式标记的文本。
-
-    Returns:
-        runs (list[dict]): run 字典列表。
+    - `**bold**` -> `Run(text="bold", bold=True)`
+    - `*italic*` -> `Run(text="italic", italic=True)`
+    - 普通文本 -> `Run(text="...")`
     """
     parts = _INLINE_RE.split(text)
-    runs: list[dict[str, Any]] = []
+    runs: list[items.Run] = []
     for part in parts:
         if not part:
             continue
-        
+
         if part.startswith('**') and part.endswith('**'):
-            runs.append({"text": part[2:-2], "bold": True})
+            runs.append(items.Run(text=part[2:-2], bold=True))
         elif part.startswith('*') and part.endswith('*'):
-            runs.append({"text": part[1:-1], "italic": True})
+            runs.append(items.Run(text=part[1:-1], italic=True))
         else:
-            runs.append({"text": part})
-    
+            runs.append(items.Run(text=part))
+
     return runs

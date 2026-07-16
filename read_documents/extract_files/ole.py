@@ -30,7 +30,6 @@ def decompose_ole_object(filepath: Path, out_dir: Path) -> list[tuple[str | None
     
     try:
         ole = OleFileIO(str(filepath))
-
         native_data: bytes | None = None
         for parts in ole.listdir():
             name = parts[-1] if parts else ''
@@ -67,9 +66,9 @@ def _find_ole_embedded_offset(native_data: bytes) -> tuple[list[str], int] | Non
     """
     扫描 Ole10Native 流，定位嵌入文件的起始偏移和文件名。
 
-    在 Ole10Native 二进制数据中，嵌入文件的原始文件名以空字节结尾的
-    ASCII 字符串形式存储在头部，实际文件数据紧随其后。
-    函数先扫描字符串区域，再用魔数定位数据起始位置。
+    - 在 Ole10Native 二进制数据中，嵌入文件的原始文件名以空字节结尾的
+      ASCII 字符串形式存储在头部，实际文件数据紧随其后。
+      函数先扫描字符串区域，再用魔数定位数据起始位置。
     """
     if len(native_data) < 16:
         return None

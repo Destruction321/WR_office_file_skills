@@ -12,11 +12,10 @@ def normalize_path(path: str) -> str:
     ## 将 MSYS / Cygwin 风格的路径转换为 Windows 原生路径。
 
     - 在 Windows 的 Git Bash（MSYS2）下，Shell 将 /tmp/ 视为 Windows TEMP 目录，
-    但 Python（原生 Windows 进程）不识别 /tmp/，
-    它只理解 C:\\Users\\\\...\\Temp\\ 这样的 Windows 绝对路径。
-
+      但 Python（原生 Windows 进程）不识别 /tmp/，
+      它只理解 C:\\Users\\\\...\\Temp\\ 这样的 Windows 绝对路径。
     - 此函数检测常见 MSYS 模式并将其转换，使 Python 能打开文件。
-    在非 Windows 平台上原样返回。
+      在非 Windows 平台上原样返回。
 
     ## 支持的转换（仅 Windows）:
     1. /tmp/...  ->  %TEMP%\\\\...

@@ -7,12 +7,12 @@
 - `.xlsx`、`.pptx`、`.csv` 不纳入支持——前者没有模板场景，pptx 模板过于复杂，csv 是数据格式不是文档。
 """
 
-from os import makedirs
 from pathlib import Path
 from re import compile
 from shutil import copy2
 
 from .docx import fill_docx
+from .replacer import Replacer
 from .text_filler import fill_text
 
 # 默认占位符模式：{{ name }}、{{name}} 等
@@ -34,7 +34,8 @@ def fill_template(template_path: str | Path,
         template_path (str | Path): 模板文件路径。
         output_path (str | Path): 输出文件路径（默认不覆盖已存在的文件）。
         content_map (dict[str, str]): 占位符名称 -> 替换文本。
-        placeholder_pattern (str | None): 占位符正则模式。Group(1) 必须捕获占位符名称，默认匹配 {{ name }}。
+        placeholder_pattern (str | None): 
+            占位符正则模式。Group(1) 必须捕获占位符名称，默认匹配 {{ name }}。
 
     Returns:
         output_path (Path): 输出文件的 Path 对象。
@@ -53,19 +54,19 @@ def fill_template(template_path: str | Path,
         raise FileExistsError(f'输出文件已存在: {output_path}')
 
     ext = template_path.suffix.lower()
-    makedirs(output_path.parent, exist_ok=True)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 编译占位符正则
-    compiled = compile(placeholder_pattern or DEFAULT_PATTERN)
+    # 编译占位符正则并聚合为替换器
+    replacer = Replacer(content_map, compile(placeholder_pattern or DEFAULT_PATTERN))
 
     if ext in _DOCX_EXTS:
         # docx：先复制模板，再原地替换
         copy2(template_path, output_path)
-        fill_docx(output_path, content_map, compiled)
+        fill_docx(output_path, replacer)
 
     elif ext in _TEXT_EXTS:
         # 纯文本：读 -> 替换 -> 重新写入
-        fill_text(template_path, output_path, content_map, compiled)
+        fill_text(template_path, output_path, replacer)
 
     else:
         raise ValueError(f'不支持的格式: {ext}。仅支持 docx 和纯文本（md/txt）。')

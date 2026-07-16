@@ -5,6 +5,7 @@ from pathlib import Path
 from shutil import copy2
 from sys import exit, stderr
 
+from .items import ImageItem, item_from_dict
 from .md_parser import parse_sections_md
 
 
@@ -73,25 +74,31 @@ def _run_section_fill(args: Namespace,
     if section_path.suffix.lower() != '.md':
         with open(section_path, 'r', encoding='utf-8') as f:
             try:
-                sections = load(f)
+                raw = load(f)
             except ValueError as e:
                 print(f'错误: JSON 解析失败: {section_path}: {e}', file=stderr)
                 exit(1)
+        sections = {
+            heading: [item_from_dict(it) for it in items] for heading, items in raw.items()
+        }
     else:
         sections = parse_sections_md(section_path.read_text(encoding='utf-8'))
 
     # 将相对图片路径解析为 section-data-file 所在目录的绝对路径
     section_dir = section_path.parent
-    for _, items in sections.items():
-        for item in items:
-            if item.get("type") != "image":
+    for items in sections.values():
+        for i, item in enumerate(items):
+            if not isinstance(item, ImageItem):
                 continue
 
-            p = Path(item["path"])
+            p = Path(item.path)
             if p.is_absolute():
                 continue
-            
-            item["path"] = str((section_dir / p).resolve())
+
+            items[i] = ImageItem(
+                path=str((section_dir / p).resolve()),
+                width_inches=item.width_inches,
+            )
 
     # 同文件 -> 原地修改；不同文件 -> 先复制
     # dry-run 模式不创建输出文件（只验证定位），直接对模板读取

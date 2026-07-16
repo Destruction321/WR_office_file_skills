@@ -3,27 +3,26 @@
 - 先尝试 `python-pptx`（可处理伪装成 `.ppt` 的 `.pptx`），再 COM 回退处理旧 `.ppt` 格式。
 """
 
-from pathlib import Path
 from subprocess import run, DEVNULL, TimeoutExpired
 from sys import platform
 
-from .common import kill_orphan_com, PPT_SCRIPT
+from .common import ExtractJob, PPT_SCRIPT, kill_orphan_com
 from .. import assets
 from ..deps import ensure_import
 from ..util import mktemp_in_dir
 
 
-def extract_pptx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
+def extract_pptx(job: ExtractJob) -> list[str]:
     """
     ## 通过 `python-pptx` 提取 `.pptx` 文件，逐幻灯片提取文字和表格。
 
     Args:
-        filepath (Path): 文档文件路径。
-        assets_dir (Path | None): 资源提取目标目录（可选）。
+        job (ExtractJob): 待提取作业，包含文件路径和资源目录。
 
     Returns:
         lines (list[str]): 提取出的文本行，失败时返回错误信息。
     """
+    filepath, assets_dir = job.filepath, job.assets_dir
     assets_result: dict[str, list[str]] = {}
     if assets_dir:
         assets_result = assets.extract_ooxml_assets(filepath, assets_dir / filepath.stem, '.pptx')
@@ -63,31 +62,30 @@ def extract_pptx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
     return lines
 
 
-def extract_ppt(filepath: Path, assets_dir: Path | None = None) -> list[str]:
+def extract_ppt(job: ExtractJob) -> list[str]:
     """
     ## 先尝试 `python-pptx`，失败时回退 COM（旧格式兼容）。
     - `python-pptx` 能打开部分旧 `.ppt` 文件（OOXML 变体），
-    真正的旧 `.ppt`（二进制格式）才会走到 COM 路径。
+      真正的旧 `.ppt`（二进制格式）才会走到 COM 路径。
 
     Args:
-        filepath (Path): 文档文件路径。
-        assets_dir (Path | None): 资源提取目标目录（可选）。
+        job (ExtractJob): 待提取作业，包含文件路径和资源目录。
 
     Returns:
         lines (list[str]): 提取出的文本行，失败时返回错误信息。
     """
     try:
-        result = extract_pptx(filepath, assets_dir)
+        result = extract_pptx(job)
         if all(not line or line.startswith('[') for line in result):
             raise ValueError('python-pptx 仅返回了错误信息')
         return result
-    
     except Exception:
-        return _extract_ppt_com(filepath, assets_dir)
+        return _extract_ppt_com(job)
 
 
-def _extract_ppt_com(filepath: Path, assets_dir: Path | None = None) -> list[str]:
+def _extract_ppt_com(job: ExtractJob) -> list[str]:
     """通过 Windows COM 提取旧 .ppt 文件。"""
+    filepath, assets_dir = job.filepath, job.assets_dir
     if platform != 'win32':
         return ['[Error: 旧格式 .ppt 提取需要 Windows + Microsoft Office]']
     if not PPT_SCRIPT.exists():
@@ -96,8 +94,11 @@ def _extract_ppt_com(filepath: Path, assets_dir: Path | None = None) -> list[str
     tmp_out = mktemp_in_dir(filepath, prefix='tmp_ppt_') / 'output.txt'
     try:
         run(
-            ['powershell', '-ExecutionPolicy', 'Bypass', '-File', str(PPT_SCRIPT),
-             '-PptPath', str(filepath), '-OutFile', str(tmp_out)],
+            [
+                'powershell', '-ExecutionPolicy', 'Bypass',
+                '-File', str(PPT_SCRIPT),
+                '-PptPath', str(filepath), '-OutFile', str(tmp_out)
+            ],
             stdout=DEVNULL, stderr=DEVNULL, timeout=120
         )
         if tmp_out.exists():
@@ -110,6 +111,5 @@ def _extract_ppt_com(filepath: Path, assets_dir: Path | None = None) -> list[str
     except TimeoutExpired:
         kill_orphan_com('POWERPNT.EXE')
         return ['[Error: PowerPoint 提取超时]']
-
     except Exception as e:
         return [f'[Error: 通过 COM 提取 PPT 失败: {e}]']
