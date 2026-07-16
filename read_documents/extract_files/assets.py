@@ -40,7 +40,7 @@ def extract_ooxml_assets(filepath: Path, assets_dir: Path, ext_key: str) -> dict
     """
     ## 提取 OOXML 文件中的所有资源，按类别存入子目录。
     - 从 ZIP 包中提取 media/ 和 embeddings/
-    目录下的文件，按图片/媒体/嵌入对象/其他分类，处理文件名冲突。
+      目录下的文件，按图片/媒体/嵌入对象/其他分类，处理文件名冲突。
 
     Args:
         filepath (Path): OOXML 文件路径。
@@ -63,7 +63,6 @@ def extract_ooxml_assets(filepath: Path, assets_dir: Path, ext_key: str) -> dict
     except BadZipFile:
         if ext_key not in ('.xls', '.doc'):
             print(f'  [警告] 非有效 ZIP/OOXML 文件: {filepath.name}', file=stderr)
-    
     except Exception as e:
         print(f'  [警告] 资源提取失败 {filepath.name}: {e}', file=stderr)
     
@@ -116,8 +115,10 @@ def append_assets_summary(lines: list[str], assets_result: dict[str, list[str]])
     lines.append('[提取的嵌入文件]')
 
     cat_labels = [
-        ('图片', 'images'), ('媒体', 'media'),
-        ('嵌入对象', 'embeddings'), ('其他', 'other'),
+        ('图片', 'images'),
+        ('媒体', 'media'),
+        ('嵌入对象', 'embeddings'),
+        ('其他', 'other'),
     ]
 
     for cat, key in cat_labels:
@@ -146,10 +147,10 @@ def _extract_from_zip(filepath: Path,
 
             matched = False
             for prefix in folders:
-                if not name.startswith(prefix):
-                    continue
-                matched = True
-                break
+                if name.startswith(prefix):
+                    matched = True
+                    break
+            
             if not matched:
                 continue
 

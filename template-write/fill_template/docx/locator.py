@@ -3,7 +3,7 @@
 - `locate_section` / `find_heading_index_scoped` 由 `section_filler` 调用。
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from . import xmlutils
@@ -11,19 +11,32 @@ from . import xmlutils
 SCOPE_SEP = ' / '
 
 
-@dataclass
+@dataclass(frozen=True)
 class LocateContext:
     """
     ## 段落定位上下文管理模块
     
     Attributes:
-        children (list[Any]): `docx.Document.body` 列表
+        children (tuple[Any, ...]): `docx.Document.body` 子元素元组
         qn (Any): `docx.oxml.ns.qn` 函数
         hs_lower (str | None): 指定的 `--heading-style`，统一小写。
     """
-    children: list[Any]
+    children: tuple[Any, ...]
     qn: Any
     hs_lower: str | None = None
+    
+    def refresh_body(self, new_body) -> LocateContext:
+        """
+        ## 返回一个新的 LocateContext，children 刷新为 new_body 的子元素元组。
+        
+        Args:
+            new_body: docx.Document.body
+        
+        Returns:
+            new_locate_ctx (LocateContext): 
+                新的 LocateContext，children 刷新为 new_body 的子元素元组。
+        """
+        return replace(self, children=tuple(new_body))
 
 
 def locate_section(locate_ctx: LocateContext, heading_text: str) -> tuple[int, int | None] | None:
@@ -75,6 +88,7 @@ def find_heading_index_scoped(locate_ctx: LocateContext, heading_text: str) -> i
     parent_idx = _find_heading_index(locate_ctx, parent_text)
     if parent_idx is None:
         return None
+    
     return _find_heading_index(locate_ctx, child_text.strip(), start=parent_idx + 1)
 
 

@@ -1,33 +1,47 @@
 """
 # docx 节级内容填充器
 
-**核心原则**：文本匹配定位 + 样式名定义界。不推断标题级别。
-**工具只做机械操作**：定位标题 -> 确定边界 -> 清除旧内容 -> 插入新内容 -> 验证。
+## 核心原则：
+1. 文本匹配定位 + 样式名定义界。不推断标题级别。
+2. **工具只做机械操作**：定位标题 -> 确定边界 -> 清除旧内容 -> 插入新内容 -> 验证。
 智能判断由 Agent 通过 --scan 输出完成。
 
 ## 标题定位：
 1. 全局定位："实验过程及分析" — 全文搜索第一个匹配段落
 2. 限定定位："实验七 / 实验过程及分析" — 先找父标题，再在范围内找子标题
 
-**边界检测只有两种策略**：
+## 边界检测策略：
 1. 相同样式名的段落 -> 同级标题 -> 节边界
 2. Word 内置 Heading 样式的段落 -> 节边界
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from sys import stderr
 from typing import Any
 
 from . import elements, locator, scanner
 from ..deps import ensure_import
+from ..items import ImageItem, Item
 
 
-@dataclass
+@dataclass(frozen=True)
 class _FillSession:
     body: Any
     doc: Any
     locate_ctx: locator.LocateContext
+    
+    def refresh_locate_ctx(self, new_body) -> _FillSession:
+        """
+        ## 返回一个新的 _FillSession，body 刷新为 new_body。
+        
+        Args:
+            new_body: docx.Document.body
+        
+        Returns:
+            new_session (_FillSession): 新的 _FillSession，body 刷新为 new_body。
+        """
+        return replace(self, locate_ctx=self.locate_ctx.refresh_body(new_body))
 
 
 # ===================================================================
@@ -45,15 +59,15 @@ def scan_docx(doc_path: Path) -> None:
     Document = ensure_import("python-docx", "docx", attr="Document")
     qn = ensure_import("python-docx", "docx.oxml.ns", attr="qn")
     body = Document(str(doc_path)).element.body
-    all_paras, style_counts, style_texts = scanner.collect_paragraphs(body, qn)
-    headings, heading_styles = scanner.identify_headings(all_paras, style_counts, style_texts)
-    empty_set = scanner.find_empty_sections(all_paras, headings)
+    scan = scanner.collect_paragraphs(body, qn)
+    headings, heading_styles = scanner.identify_headings(scan)
+    empty_set = scanner.find_empty_sections(scan.all_paras, headings)
     total = scanner.print_structure(headings, empty_set)
-    scanner.print_style_hints(heading_styles, style_counts, style_texts, total)
+    scanner.print_style_hints(heading_styles, scan.stats, total)
 
 
 def fill_docx_sections(doc_path: Path,
-                       sections: dict[str, list[dict[str, Any]]],*,
+                       sections: dict[str, list[Item]],*,
                        mode: str = "replace",
                        heading_style: str | None = None,
                        dry_run: bool = False) -> int:
@@ -62,7 +76,7 @@ def fill_docx_sections(doc_path: Path,
 
     Args:
         doc_path (Path): 已复制的 `.docx` 文件路径（原地修改）。
-        sections (dict[str, list[dict[str, Any]]]): 标题文本 -> 内容项列表。支持 "父标题 / 子标题" 限定定位。
+        sections (dict[str, list[Item]]): 标题文本 -> 内容项列表。支持 "父标题 / 子标题" 限定定位。
         mode (str): 'replace'（清空旧内容再填充）或 'append'（追加）。
         heading_style (str | None): 手动指定标题样式名（如 'a4'），用于边界检测。
         dry_run (bool): 仅检测定位和边界，不修改文件。
@@ -76,7 +90,7 @@ def fill_docx_sections(doc_path: Path,
     filled_summary: list[tuple[str, int, int, str]] = []
 
     for sec_idx, (heading_text, items) in enumerate(sections.items()):
-        session.locate_ctx.children = list(session.body)
+        session = session.refresh_locate_ctx(session.body)
 
         loc = locator.locate_section(session.locate_ctx, heading_text)
         if loc is None:
@@ -86,8 +100,8 @@ def fill_docx_sections(doc_path: Path,
 
         if dry_run:
             end_desc = str(end_idx) if end_idx is not None else "end"
-            pc = sum(1 for it in items if it.get("type") != "image")
-            ic = sum(1 for it in items if it.get("type") == "image")
+            pc = sum(1 for it in items if not isinstance(it, ImageItem))
+            ic = sum(1 for it in items if isinstance(it, ImageItem))
             print(
                 f"  [DRY] '{heading_text}' -> idx={heading_idx}, end={end_desc}, "
                 f"{pc} paragraphs + {ic} images"
@@ -148,7 +162,7 @@ def _open_fill_session(doc_path: Path, heading_style: str | None = None) -> _Fil
     doc = Document(str(doc_path))
     body = doc.element.body
     hs_lower = heading_style.lower() if heading_style else None
-    locate_ctx = locator.LocateContext(children=list(body), qn=qn, hs_lower=hs_lower)
+    locate_ctx = locator.LocateContext(children=tuple(body), qn=qn, hs_lower=hs_lower)
     return _FillSession(body=body, doc=doc, locate_ctx=locate_ctx)
 
 

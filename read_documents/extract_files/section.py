@@ -46,7 +46,7 @@ def filter_section(lines: list[str], section: str) -> list[str]:
     """
     ## 过滤提取出的文本，仅保留匹配 section 关键字的小节。
     - 自动检测输出结构类型（Markdown 标题 / 幻灯片 / 页面 / 工作表）并选择对应的过滤策略；
-    无匹配结构时回退到关键字上下文提取。
+      无匹配结构时回退到关键字上下文提取。
 
     Args:
         lines (list[str]): 提取出的全部文本行。
@@ -81,8 +81,7 @@ def filter_section(lines: list[str], section: str) -> list[str]:
 
 def _filter_by_heading_markers(lines: list[str], section_low: str) -> list[str]:
     """
-    按 Markdown 标题标记（# ## ###）过滤。
-    
+    按 Markdown 标题标记（# ## ###）过滤，
     从匹配关键字的标题开始，到同级或更高级别标题结束。
     """
     result: list[str] = []
@@ -125,18 +124,18 @@ def _filter_by_unit_markers(lines: list[str],
         if line.startswith(marker_prefix) and current:
             units.append(current)
             current = []
-        
         current.append(line)
-
     if current:
         units.append(current)
 
     matched: set[int] = set()
     for idx, unit in enumerate(units):
         for line in unit:
-            if section_low in line.lower():
-                matched.add(idx)
-                break
+            if section_low not in line.lower():
+                continue
+
+            matched.add(idx)
+            break
 
     with_context: set[int] = set()
     for idx in matched:

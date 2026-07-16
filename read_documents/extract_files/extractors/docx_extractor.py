@@ -3,11 +3,10 @@
 - 先尝试 `python-docx`（可处理伪装成 `.doc` 的 `.docx`），再 COM 回退处理旧 `.doc` 格式。
 """
 
-from pathlib import Path
 from subprocess import run, DEVNULL, TimeoutExpired
 from sys import platform
 
-from .common import kill_orphan_com, DOC_SCRIPT
+from .common import DOC_SCRIPT, ExtractJob, kill_orphan_com
 from .. import assets
 from ..deps import ensure_import
 from ..section import detect_chinese_heading
@@ -23,41 +22,40 @@ _BODY_STYLE_NAMES = frozenset({
 })
 
 
-def extract_doc(filepath: Path, assets_dir: Path | None = None) -> list[str]:
+def extract_doc(job: ExtractJob) -> list[str]:
     """
     ## 提取旧格式 `.doc` 文件。
     
     - 先尝试 `python-docx`（可处理伪装成 `.doc` 的 `.docx`），再 COM 回退。
     - 如果 `python-docx` 只返回了错误信息（全是 `[Error...]` 或空），
-    说明不是 `.docx` 变体，走 COM 路径。
+      说明不是 `.docx` 变体，走 COM 路径。
 
     Args:
-        filepath (Path): 文档文件路径。
-        assets_dir (Path | None): 资源提取目标目录（可选）。
+        job (ExtractJob): 待提取作业，包含文件路径和资源目录。
 
     Returns:
         lines (list[str]): 提取出的文本行，失败时返回错误信息。
     """
     try:
-        result = extract_docx(filepath, assets_dir)
+        result = extract_docx(job)
         if all(not line or line.startswith('[') for line in result):
             raise ValueError('python-docx 仅返回了错误信息')
         return result
     except Exception:
-        return _extract_doc_com(filepath, assets_dir)
+        return _extract_doc_com(job)
 
 
-def extract_docx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
+def extract_docx(job: ExtractJob) -> list[str]:
     """
     ## 通过 `python-docx` 提取 `.docx` 文件，保留段落/表格交错顺序和标题样式。
 
     Args:
-        filepath (Path): 文档文件路径。
-        assets_dir (Path | None): 资源提取目标目录（可选）。
+        job (ExtractJob): 待提取作业，包含文件路径和资源目录。
 
     Returns:
         lines (list[str]): 提取出的文本行，失败时返回错误信息。
     """
+    filepath, assets_dir = job.filepath, job.assets_dir
     lines: list[str] = []
     assets_result: dict[str, list[str]] = {}
     if assets_dir:
@@ -97,11 +95,11 @@ def extract_docx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
     return lines
 
 
-def _extract_doc_com(filepath: Path, assets_dir: Path | None = None) -> list[str]:
+def _extract_doc_com(job: ExtractJob) -> list[str]:
     """通过 Windows COM 提取旧 .doc 文件。"""
+    filepath, assets_dir = job.filepath, job.assets_dir
     if platform != 'win32':
         return ['[Error: 旧格式 .doc 提取需要 Windows + Microsoft Office]']
-
     if not DOC_SCRIPT.exists():
         return ['[Error: 找不到 Word 提取脚本]']
 
@@ -122,7 +120,6 @@ def _extract_doc_com(filepath: Path, assets_dir: Path | None = None) -> list[str
     except TimeoutExpired:
         kill_orphan_com('WINWORD.EXE')
         return ['[Error: Word 提取超时]']
-
     except Exception as e:
         return [f'[Error: 通过 COM 提取 DOC 失败: {e}]']
 
@@ -131,7 +128,7 @@ def _extract_docx_body_ordered(doc, lines: list[str], style_count: dict[str, int
     """
     按文档顺序提取 docx 内容，添加 Markdown 标题标记。
 
-    通过迭代 XML body 使段落和表格以真实文档顺序出现,
+    通过迭代 XML body 使段落和表格以真实文档顺序出现，
     有别于 doc.paragraphs + doc.tables 这种分离序列的方式。
     """
     def text(elem) -> str:
@@ -144,6 +141,7 @@ def _extract_docx_body_ordered(doc, lines: list[str], style_count: dict[str, int
             texts = text(child).strip()
             if not texts:
                 continue
+            
             # 用多种方式检测标题级别，优先级：
             # 1. detect_chinese_heading 最准确（"实验七"=1、"实验目的"=2）
             # 2. 自定义样式推断（a4 -> 2，与真实级别对比后可能高估或低估）
@@ -176,7 +174,7 @@ def _get_heading_style_level(child, qn, style_count: dict[str, int] | None = Non
 
     按以下顺序检测：
     1. Word 内置标题样式（"Heading 1"-"Heading 9"）
-    2. 自定义标题样式：通过文档中所有段落的样式出现频率推断,
+    2. 自定义标题样式：通过文档中所有段落的样式出现频率推断，
        如果段落的样式不是正文样式，且在整个文档中 ≥2 次出现，则视为标题。
 
     没有匹配时返回 None。

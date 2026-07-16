@@ -54,6 +54,7 @@ def identify_data(data: bytes) -> tuple[str, str]:
         (ext, desc) (tuple[str, str]): (扩展名, 描述) 元组。未识别时返回 ('.bin', '未知二进制')。
     """
     for magic, ext, desc in MAGIC_SIGNATURES:
-        if data[:len(magic)] == magic:
-            return ext, desc
+        if data[:len(magic)] != magic:
+            continue
+        return ext, desc
     return '.bin', '未知二进制'

@@ -3,27 +3,26 @@
 - 先尝试 `openpyxl` / `xlrd`，再 COM 回退处理旧 `.xls` 格式。
 """
 
-from pathlib import Path
 from subprocess import run, DEVNULL, TimeoutExpired
 from sys import platform, stderr
 
-from .common import kill_orphan_com, XLS_SCRIPT
+from .common import ExtractJob, XLS_SCRIPT, kill_orphan_com
 from .. import assets
 from ..deps import ensure_import
 from ..util import mktemp_in_dir
 
 
-def extract_xlsx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
+def extract_xlsx(job: ExtractJob) -> list[str]:
     """
     ## 通过 `openpyxl` 提取 `.xlsx` 文件，逐工作表按行提取。
 
     Args:
-        filepath (Path): 文档文件路径。
-        assets_dir (Path | None): 资源提取目标目录（可选）。
+        job (ExtractJob): 待提取作业，包含文件路径和资源目录。
 
     Returns:
         lines (list[str]): 提取出的文本行，失败时返回错误信息。
     """
+    filepath, assets_dir = job.filepath, job.assets_dir
     lines: list[str] = []
     assets_result: dict[str, list[str]] = {}
     if assets_dir:
@@ -60,18 +59,18 @@ def extract_xlsx(filepath: Path, assets_dir: Path | None = None) -> list[str]:
         return [f'[Error: 读取 XLSX 失败: {e}]']
 
 
-def extract_xls(filepath: Path, assets_dir: Path | None = None) -> list[str]:
+def extract_xls(job: ExtractJob) -> list[str]:
     """
     ## 通过 `xlrd` 提取旧 `.xls`（BIFF）文件，再 COM 回退。
     - `xlrd` 能处理大部分 `.xls`，失败时自动走 COM 路径。
 
     Args:
-        filepath (Path): 文档文件路径。
-        assets_dir (Path | None): 资源提取目标目录（可选）。
+        job (ExtractJob): 待提取作业，包含文件路径和资源目录。
 
     Returns:
         lines (list[str]): 提取出的文本行，失败时返回错误信息。
     """
+    filepath, assets_dir = job.filepath, job.assets_dir
     lines: list[str] = []
     assets_result: dict[str, list[str]] = {}
     if assets_dir:
@@ -81,7 +80,7 @@ def extract_xls(filepath: Path, assets_dir: Path | None = None) -> list[str]:
         open_workbook = ensure_import('xlrd', attr='open_workbook')
     except ImportError:
         print('  [警告] xlrd 未安装，尝试 COM 回退 ...', file=stderr)
-        return _extract_xls_com(filepath, assets_dir)
+        return _extract_xls_com(job)
 
     try:
         wb = open_workbook(str(filepath))
@@ -102,11 +101,12 @@ def extract_xls(filepath: Path, assets_dir: Path | None = None) -> list[str]:
     except Exception as e:
         print(f'  [警告] xlrd 失败: {e}，尝试 COM 回退 ...', file=stderr)
 
-    return _extract_xls_com(filepath, assets_dir)
+    return _extract_xls_com(job)
 
 
-def _extract_xls_com(filepath: Path, assets_dir: Path | None = None) -> list[str]:
+def _extract_xls_com(job: ExtractJob) -> list[str]:
     """通过 Windows COM 提取旧 .xls 文件。"""
+    filepath, assets_dir = job.filepath, job.assets_dir
     if platform != 'win32':
         return ['[Error: 旧格式 .xls 提取需要 Windows + Microsoft Office]']
     if not XLS_SCRIPT.exists():
@@ -115,8 +115,11 @@ def _extract_xls_com(filepath: Path, assets_dir: Path | None = None) -> list[str
     tmp_out = mktemp_in_dir(filepath, prefix='tmp_xls_') / 'output.txt'
     try:
         run(
-            ['powershell', '-ExecutionPolicy', 'Bypass', '-File', str(XLS_SCRIPT),
-             '-XlsPath', str(filepath), '-OutFile', str(tmp_out)],
+            [
+                'powershell', '-ExecutionPolicy', 'Bypass',
+                '-File', str(XLS_SCRIPT),
+                '-XlsPath', str(filepath), '-OutFile', str(tmp_out)
+            ],
             stdout=DEVNULL, stderr=DEVNULL, timeout=120
         )
         if tmp_out.exists():
@@ -129,6 +132,5 @@ def _extract_xls_com(filepath: Path, assets_dir: Path | None = None) -> list[str
     except TimeoutExpired:
         kill_orphan_com('EXCEL.EXE')
         return ['[Error: Excel 提取超时]']
-
     except Exception as e:
         return [f'[Error: 通过 COM 提取 XLS 失败: {e}]']
