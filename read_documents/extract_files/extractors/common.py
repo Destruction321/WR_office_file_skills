@@ -12,7 +12,7 @@ from sys import platform
 @dataclass(frozen=True)
 class ExtractJob:
     """
-    单文件提取作业：文件路径 + 资源目录 + 强制渲染页码（仅 PDF）。
+    ## 单文件提取作业：文件路径 + 资源目录 + 强制渲染页码（仅 PDF）。
     
     Attributes:
         filepath (Path): 待提取文件路径。
