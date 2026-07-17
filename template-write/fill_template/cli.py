@@ -10,6 +10,7 @@ from .md_parser import parse_sections_md
 
 
 def _build_parser() -> ArgumentParser:
+    """构建 CLI 参数解析器。"""
     parser = ArgumentParser(description='在模板文件中替换占位符或填充节内容')
     parser.add_argument('--template', '-t', required=True, help='模板文件路径')
     parser.add_argument('--output', '-o', help='输出文件路径（--scan 模式下不需要）')

@@ -27,6 +27,7 @@ from ..items import ImageItem, Item
 
 @dataclass(frozen=True)
 class _FillSession:
+    """文档填充会话"""
     body: Any
     doc: Any
     locate_ctx: locator.LocateContext
