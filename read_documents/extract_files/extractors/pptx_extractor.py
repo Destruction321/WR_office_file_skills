@@ -44,9 +44,8 @@ def extract_pptx(job: ExtractJob) -> list[str]:
             if shape.has_text_frame:
                 for p in shape.text_frame.paragraphs:
                     t = p.text.strip()
-                    if not t:
-                        continue
-                    lines.append(t)
+                    if t:
+                        lines.append(t)
 
             if shape.has_table:
                 for row in shape.table.rows:

@@ -14,5 +14,5 @@ tmp*
 # Python virtual environments
 venv
 
-# claude
+# opencode
 *.claude

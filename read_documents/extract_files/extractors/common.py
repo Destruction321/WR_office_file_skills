@@ -41,9 +41,11 @@ def kill_orphan_com(process_name: str) -> None:
         return
     try:
         run(
-            ['taskkill', '/F',
-             '/FI', f'IMAGENAME eq {process_name}',
-             '/FI', 'STATUS eq NOT RESPONDING'],
+            [
+                'taskkill', '/F',
+                '/FI', f'IMAGENAME eq {process_name}',
+                '/FI', 'STATUS eq NOT RESPONDING'
+            ],
             capture_output=True, timeout=5,
         )
     except Exception:
