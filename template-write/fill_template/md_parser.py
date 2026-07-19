@@ -76,10 +76,12 @@ def parse_sections_md(md_text: str) -> dict[str, list[items.Item]]:
         if img_match:
             _flush_pending(pending_lines, current_items)
             pending_lines = []
-            current_items.append(items.ImageItem(
-                path=img_match.group(1),
-                width_inches=float(img_match.group(2)) if img_match.group(2) else None,
-            ))
+            current_items.append(
+                items.ImageItem(
+                    path=img_match.group(1),
+                    width_inches=float(img_match.group(2)) if img_match.group(2) else None,
+                )
+            )
             continue
 
         # 列表项 -> 独立成段（每个列表项一个段落）

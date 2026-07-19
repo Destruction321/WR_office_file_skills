@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 # sync_docs.py — 从 opencode 分支生成 claude-code 分支的 CLAUDE.md / README.md / .gitignore
 
@@ -11,8 +10,8 @@
 **注意**：分支名 `opencode` / `claude-code` 不做替换——它们是 git 分支名，
 两个分支共用同一套。仅在散文中指代工具名时替换。
 """
-import subprocess
-import sys
+from subprocess import run
+from sys import stderr, exit
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -20,7 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 def _read_opencode_file(rel_path: str) -> str:
     """从 refs/heads/opencode 读取文件内容（UTF-8）。"""
-    result = subprocess.run(
+    result = run(
         ["git", "show", f"refs/heads/opencode:{rel_path}"],
         capture_output=True,
         text=True,
@@ -28,9 +27,11 @@ def _read_opencode_file(rel_path: str) -> str:
         cwd=REPO_ROOT,
     )
     if result.returncode != 0:
-        print(f"Error: cannot read {rel_path} from refs/heads/opencode:\n{result.stderr}",
-              file=sys.stderr)
-        sys.exit(1)
+        print(
+            f"Error: cannot read {rel_path} from refs/heads/opencode:\n{result.stderr}",
+            file=stderr
+        )
+        exit(1)
     return result.stdout
 
 

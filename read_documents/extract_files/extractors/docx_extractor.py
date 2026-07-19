@@ -106,8 +106,11 @@ def _extract_doc_com(job: ExtractJob) -> list[str]:
     tmp_out = mktemp_in_dir(filepath, prefix='tmp_doc_') / 'output.txt'
     try:
         run(
-            ['powershell', '-ExecutionPolicy', 'Bypass', '-File', str(DOC_SCRIPT),
-             '-DocPath', str(filepath), '-OutFile', str(tmp_out)],
+            [
+                'powershell', '-ExecutionPolicy', 'Bypass', '-File', str(DOC_SCRIPT),
+                '-DocPath', str(filepath),
+                '-OutFile', str(tmp_out)
+            ],
             stdout=DEVNULL, stderr=DEVNULL, timeout=120
         )
         if tmp_out.exists():

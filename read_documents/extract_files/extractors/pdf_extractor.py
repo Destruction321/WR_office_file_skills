@@ -137,7 +137,8 @@ def _extract_page(page,
     if force_render or _is_complex_layout(n_blocks, short_ratio, n_tables, x_ratio):
         if images_dir:
             img_name = f'page_{page_num}.png'
-            _render_page_image(page, images_dir / img_name)
+            pix = page.get_pixmap(dpi=150)
+            pix.save(str(images_dir / img_name))
             rel_hint = f'（图片: {images_dir.name}/{img_name}）'
             return [f'[此页为复杂排版，已渲染为图片{rel_hint}]'], meta
         if force_render:
@@ -210,20 +211,31 @@ def _render_items(items: list[tuple[float, str, Any]]) -> list[str]:
     for _, kind, payload in items:
         if kind == 'text':
             page_lines.append(payload)
-            page_lines.append('')
         elif kind == 'table':
             t_idx, table = payload
             rows = table.extract()
             page_lines.append(f'**Table {t_idx + 1}:**')
             page_lines.append('')
-            for row in rows:
-                cells = [
+            if rows:
+                n_cols = len(rows[0])
+                header_cells = [
                     str(c).replace('\n', ' ').replace('\r', '').replace('|', '\\|')
                     if c else ''
-                    for c in row
+                    for c in rows[0]
                 ]
-                page_lines.append('| ' + ' | '.join(cells) + ' |')
-            page_lines.append('')
+                page_lines.append('| ' + ' | '.join(header_cells) + ' |')
+                page_lines.append('| ' + ' | '.join(['---'] * n_cols) + ' |')
+                for row in rows[1:]:
+                    cells = [
+                        str(c).replace('\n', ' ').replace('\r', '').replace('|', '\\|')
+                        if c else ''
+                        for c in row
+                    ]
+                    while len(cells) < n_cols:
+                        cells.append('')
+                    page_lines.append('| ' + ' | '.join(cells[:n_cols]) + ' |')
+        
+        page_lines.append('')
     
     return page_lines
 
@@ -242,12 +254,6 @@ def _is_complex_layout(n_blocks: int, short_ratio: float, n_tables: int, x_ratio
     if n_tables > 0:
         return False
     return n_blocks > 10 and short_ratio >= 0.4 and x_ratio > 0.5
-
-
-def _render_page_image(page, out_path: Path, dpi: int = 150) -> None:
-    """将 PDF 页面渲染为 PNG 图片。"""
-    pix = page.get_pixmap(dpi=dpi)
-    pix.save(str(out_path))
 
 
 def _in_table_bbox(bbox: tuple, table_bboxes: list) -> bool:
