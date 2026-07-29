@@ -20,24 +20,21 @@ try {
         $text = $para.Range.Text
         # Remove trailing CR (Word uses \r as paragraph separator)
         $text = $text -replace '\r$', ''
-        if ($text.Trim()) {
-            $lines += $text
-        }
+        if (-not $text.Trim()) { continue }
+        $lines += $text
     }
 
     # Tables
-    if ($doc.Tables.Count -gt 0) {
-        foreach ($table in $doc.Tables) {
-            $lines += ""
-            for ($r = 1; $r -le $table.Rows.Count; $r++) {
-                $rowText = @()
-                for ($c = 1; $c -le $table.Columns.Count; $c++) {
-                    $cellText = $table.Cell($r, $c).Range.Text
-                    $cellText = $cellText -replace '\r\s*$', ''
-                    $rowText += $cellText.Trim() -replace '\r?\n', ' '
-                }
-                $lines += ($rowText -join " | ")
+    foreach ($table in $doc.Tables) {
+        $lines += ""
+        for ($r = 1; $r -le $table.Rows.Count; $r++) {
+            $rowText = @()
+            for ($c = 1; $c -le $table.Columns.Count; $c++) {
+                $cellText = $table.Cell($r, $c).Range.Text
+                $cellText = $cellText -replace '\r\s*$', ''
+                $rowText += $cellText.Trim() -replace '\r?\n', ' '
             }
+            $lines += ($rowText -join " | ")
         }
     }
 
