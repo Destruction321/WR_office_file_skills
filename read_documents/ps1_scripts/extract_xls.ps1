@@ -22,24 +22,24 @@ try {
         $lines += "--- Sheet: $($ws.Name) ---"
 
         $usedRange = $ws.UsedRange
-        if ($usedRange) {
-            $rows = $usedRange.Rows.Count
-            $cols = $usedRange.Columns.Count
-            $lines += "  ($rows rows x $cols cols)"
+        if (-not $usedRange) { continue }
 
-            $maxRows = [Math]::Min($rows, 100000)
-            for ($r = 1; $r -le $maxRows; $r++) {
-                $rowText = @()
-                for ($c = 1; $c -le $cols; $c++) {
-                    $cell = $ws.Cells.Item($r, $c).Text
-                    $rowText += $cell.Trim() -replace '\r?\n', ' '
-                }
-                $lines += ($rowText -join " | ")
-            }
+        $rows = $usedRange.Rows.Count
+        $cols = $usedRange.Columns.Count
+        $lines += "  ($rows rows x $cols cols)"
 
-            if ($rows -gt 100000) {
-                $lines += "  [Warning: Only first 100000 rows shown (total: $rows)]"
+        $maxRows = [Math]::Min($rows, 100000)
+        for ($r = 1; $r -le $maxRows; $r++) {
+            $rowText = @()
+            for ($c = 1; $c -le $cols; $c++) {
+                $cell = $ws.Cells.Item($r, $c).Text
+                $rowText += $cell.Trim() -replace '\r?\n', ' '
             }
+            $lines += ($rowText -join " | ")
+        }
+
+        if ($rows -gt 100000) {
+            $lines += "  [Warning: Only first 100000 rows shown (total: $rows)]"
         }
         $lines += ""
     }
