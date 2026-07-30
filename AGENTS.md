@@ -42,7 +42,7 @@
 
 ### 提交流程
 
-1. **在 `opencode` 分支提交**：代码 + 文档一起提交，`git add` + `commit` + `push origin opencode`。
+1. **在 `opencode` 分支提交**：代码 + 文档一起提交，`git add` + `commit` + `push origin opencode`。**推送后必须立即执行步骤 2 同步到 `claude-code`。**
 2. **同步到 `claude-code` 分支**：同步 `.py` 文件，再生成 `.md`。
 
    ```bash
