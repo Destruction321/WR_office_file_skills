@@ -8,7 +8,7 @@ __pycache__/
 
 # Temp files from extraction
 test/*
-!test/*.txt
+!test/测试文件夹.txt
 tmp*
 
 # Python virtual environments

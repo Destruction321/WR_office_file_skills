@@ -1,14 +1,12 @@
 """
 # sync_docs.py — 从 opencode 分支生成 claude-code 分支的 CLAUDE.md / README.md / .gitignore
 
-从 `refs/heads/opencode` 读取 AGENTS.md / README.md / .gitignore，做机械替换后写入当前分支
-（应在 `claude-code` 分支上运行）。
-
-替换表见 AGENTS.md "文档生成替换表"小节。新增涉及工具名的文本时，需同步更新
-此脚本的替换表与 AGENTS.md 的表格。
-
-**注意**：分支名 `opencode` / `claude-code` 不做替换——它们是 git 分支名，
-两个分支共用同一套。仅在散文中指代工具名时替换。
+- 从 `refs/heads/opencode` 读取 AGENTS.md / README.md / .gitignore，
+  做机械替换后写入当前分支（应在 `claude-code` 分支上运行）。
+- 替换表见 AGENTS.md "文档生成替换表"小节。
+  新增涉及工具名的文本时，需同步更新此脚本的替换表与 AGENTS.md 的表格。
+- **注意**：分支名 `opencode` / `claude-code` 不做替换——它们是 git 分支名，
+  两个分支共用同一套。仅在散文中指代工具名时替换。
 """
 from subprocess import run
 from sys import stderr, exit
@@ -44,8 +42,8 @@ AGENTS_REPLACEMENTS = [
 # README.md -> README.md：标题、工具名、路径、AI 指引文件名
 README_REPLACEMENTS = [
     ("# OpenCode Skills",          "# Claude Skills"),
-    ("OpenCode 技能集合",           "Claude Code 技能集合"),
-    ("opencode 技能目录",            "Claude Code 技能目录"),
+    ("OpenCode 技能集合",          "Claude Code 技能集合"),
+    ("opencode 技能目录",          "Claude Code 技能目录"),
     ("~/.config/opencode/skills",  "~/.claude/skills"),
     ("├── AGENTS.md",              "├── CLAUDE.md"),
 ]
