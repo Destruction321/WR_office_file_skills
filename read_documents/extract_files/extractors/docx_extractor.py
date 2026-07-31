@@ -1,16 +1,14 @@
 """
 # `.doc` / `.docx` 提取器。
-- 先尝试 `python-docx`（可处理伪装成 `.doc` 的 `.docx`），再 COM 回退处理旧 `.doc` 格式。
+- 先尝试 `python-docx`（可处理伪装成 `.doc` 的 `.docx`），失败时通过
+  pywin32 COM SaveAs 将 `.doc` 转换为 `.docx` 后复用 python-docx 提取路径。
+- 转换在系统临时目录进行，原始 `.doc` 只读打开、永不被修改。
 """
 
-from subprocess import run, DEVNULL, TimeoutExpired
-from sys import platform
-
-from .common import DOC_SCRIPT, ExtractJob, kill_orphan_com
+from .common import ExtractJob
 from .. import assets
 from ..deps import ensure_import
 from ..section import detect_chinese_heading
-from ..util import mktemp_in_dir
 
 
 # 已知正文样式名（小写）—— 排除这些后，高频出现的自定义样式视为标题
@@ -25,10 +23,10 @@ _BODY_STYLE_NAMES = frozenset({
 def extract_doc(job: ExtractJob) -> list[str]:
     """
     ## 提取旧格式 `.doc` 文件。
-    
-    - 先尝试 `python-docx`（可处理伪装成 `.doc` 的 `.docx`），再 COM 回退。
-    - 如果 `python-docx` 只返回了错误信息（全是 `[Error...]` 或空），
-      说明不是 `.docx` 变体，走 COM 路径。
+
+    - 先尝试 `python-docx`（可处理伪装成 `.doc` 的 `.docx`）。
+    - 失败（真二进制 `.doc`）时通过 COM SaveAs 转换为 `.docx`，
+      再复用 `extract_docx` 的 python-docx 提取路径。
 
     Args:
         job (ExtractJob): 待提取作业，包含文件路径和资源目录。
@@ -42,7 +40,24 @@ def extract_doc(job: ExtractJob) -> list[str]:
             raise ValueError('python-docx 仅返回了错误信息')
         return result
     except Exception:
-        return _extract_doc_com(job)
+        return _extract_doc_converted(job)
+
+
+def _extract_doc_converted(job: ExtractJob) -> list[str]:
+    """通过 COM 转换 .doc -> .docx 后，复用 python-docx 提取（含资源提取）。"""
+    from ..convert import convert_to_modern
+    try:
+        modern, cleanup = convert_to_modern(job.filepath)
+    except RuntimeError as e:
+        return [f'[Error: {e}]']
+    try:
+        lines = extract_docx(ExtractJob(filepath=modern, assets_dir=job.assets_dir))
+        if not lines or all(not line or line.startswith('[') for line in lines):
+            return lines
+        lines.append('[提示: 已通过 Word COM 转换为 .docx 后提取]')
+        return lines
+    finally:
+        cleanup()
 
 
 def extract_docx(job: ExtractJob) -> list[str]:
@@ -93,38 +108,6 @@ def extract_docx(job: ExtractJob) -> list[str]:
         assets.append_assets_summary(lines, assets_result)
     
     return lines
-
-
-def _extract_doc_com(job: ExtractJob) -> list[str]:
-    """通过 Windows COM 提取旧 .doc 文件。"""
-    filepath, assets_dir = job.filepath, job.assets_dir
-    if platform != 'win32':
-        return ['[Error: 旧格式 .doc 提取需要 Windows + Microsoft Office]']
-    if not DOC_SCRIPT.exists():
-        return ['[Error: 找不到 Word 提取脚本]']
-
-    tmp_out = mktemp_in_dir(filepath, prefix='tmp_doc_') / 'output.txt'
-    try:
-        run(
-            [
-                'powershell', '-ExecutionPolicy', 'Bypass', '-File', str(DOC_SCRIPT),
-                '-DocPath', str(filepath),
-                '-OutFile', str(tmp_out)
-            ],
-            stdout=DEVNULL, stderr=DEVNULL, timeout=120
-        )
-        if tmp_out.exists():
-            lines = tmp_out.read_text(encoding='utf-8-sig').splitlines()
-            if assets_dir:
-                lines.append('[提示: 旧格式 .doc 暂不支持嵌入文件提取]')
-            return lines
-        return ['[Error: Word 提取未产生输出]']
-
-    except TimeoutExpired:
-        kill_orphan_com('WINWORD.EXE')
-        return ['[Error: Word 提取超时]']
-    except Exception as e:
-        return [f'[Error: 通过 COM 提取 DOC 失败: {e}]']
 
 
 def _extract_docx_body_ordered(doc, lines: list[str], style_count: dict[str, int], qn) -> None:

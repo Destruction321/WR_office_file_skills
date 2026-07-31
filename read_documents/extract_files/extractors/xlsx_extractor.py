@@ -1,15 +1,15 @@
 """
 # `.xls` / `.xlsx` 提取器。
-- 先尝试 `openpyxl` / `xlrd`，再 COM 回退处理旧 `.xls` 格式。
+- 先尝试 `openpyxl` / `xlrd`（xlrd 可直接读真二进制 `.xls`），失败时通过
+  pywin32 COM SaveAs 将 `.xls` 转换为 `.xlsx` 后复用 openpyxl 提取路径。
+- 转换在系统临时目录进行，原始 `.xls` 只读打开、永不被修改。
 """
 
-from subprocess import run, DEVNULL, TimeoutExpired
-from sys import platform, stderr
+from sys import stderr
 
-from .common import ExtractJob, XLS_SCRIPT, kill_orphan_com
+from .common import ExtractJob
 from .. import assets
 from ..deps import ensure_import
-from ..util import mktemp_in_dir
 
 
 def extract_xlsx(job: ExtractJob) -> list[str]:
@@ -61,8 +61,9 @@ def extract_xlsx(job: ExtractJob) -> list[str]:
 
 def extract_xls(job: ExtractJob) -> list[str]:
     """
-    ## 通过 `xlrd` 提取旧 `.xls`（BIFF）文件，再 COM 回退。
-    - `xlrd` 能处理大部分 `.xls`，失败时自动走 COM 路径。
+    ## 通过 `xlrd` 提取旧 `.xls`（BIFF）文件，失败时 COM 转换回退。
+    - `xlrd` 能处理大部分 `.xls`；失败时通过 COM SaveAs 转换为 `.xlsx`
+      后复用 openpyxl 提取路径。
 
     Args:
         job (ExtractJob): 待提取作业，包含文件路径和资源目录。
@@ -79,8 +80,8 @@ def extract_xls(job: ExtractJob) -> list[str]:
     try:
         open_workbook = ensure_import('xlrd', attr='open_workbook')
     except ImportError:
-        print('  [警告] xlrd 未安装，尝试 COM 回退 ...', file=stderr)
-        return _extract_xls_com(job)
+        print('  [警告] xlrd 未安装，尝试 COM 转换回退 ...', file=stderr)
+        return _extract_xls_converted(job)
 
     try:
         wb = open_workbook(str(filepath))
@@ -97,40 +98,25 @@ def extract_xls(job: ExtractJob) -> list[str]:
         if assets_result:
             assets.append_assets_summary(lines, assets_result)
         return lines
-    
+
     except Exception as e:
-        print(f'  [警告] xlrd 失败: {e}，尝试 COM 回退 ...', file=stderr)
+        print(f'  [警告] xlrd 失败: {e}，尝试 COM 转换回退 ...', file=stderr)
 
-    return _extract_xls_com(job)
+    return _extract_xls_converted(job)
 
 
-def _extract_xls_com(job: ExtractJob) -> list[str]:
-    """通过 Windows COM 提取旧 .xls 文件。"""
-    filepath, assets_dir = job.filepath, job.assets_dir
-    if platform != 'win32':
-        return ['[Error: 旧格式 .xls 提取需要 Windows + Microsoft Office]']
-    if not XLS_SCRIPT.exists():
-        return ['[Error: 找不到 Excel 提取脚本。请先安装 xlrd: pip install xlrd]']
-
-    tmp_out = mktemp_in_dir(filepath, prefix='tmp_xls_') / 'output.txt'
+def _extract_xls_converted(job: ExtractJob) -> list[str]:
+    """通过 COM 转换 .xls -> .xlsx 后，复用 openpyxl 提取（含资源提取）。"""
+    from ..convert import convert_to_modern
     try:
-        run(
-            [
-                'powershell', '-ExecutionPolicy', 'Bypass',
-                '-File', str(XLS_SCRIPT),
-                '-XlsPath', str(filepath), '-OutFile', str(tmp_out)
-            ],
-            stdout=DEVNULL, stderr=DEVNULL, timeout=120
-        )
-        if tmp_out.exists():
-            lines = tmp_out.read_text(encoding='utf-8-sig').splitlines()
-            if assets_dir:
-                lines.append('[提示: 旧格式 .xls 暂不支持嵌入文件提取]')
+        modern, cleanup = convert_to_modern(job.filepath)
+    except RuntimeError as e:
+        return [f'[Error: {e}]']
+    try:
+        lines = extract_xlsx(ExtractJob(filepath=modern, assets_dir=job.assets_dir))
+        if not lines or all(not line or line.startswith('[') for line in lines):
             return lines
-        return ['[Error: Excel 提取未产生输出]']
-
-    except TimeoutExpired:
-        kill_orphan_com('EXCEL.EXE')
-        return ['[Error: Excel 提取超时]']
-    except Exception as e:
-        return [f'[Error: 通过 COM 提取 XLS 失败: {e}]']
+        lines.append('[提示: 已通过 Excel COM 转换为 .xlsx 后提取]')
+        return lines
+    finally:
+        cleanup()

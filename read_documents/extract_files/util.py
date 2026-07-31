@@ -1,23 +1,4 @@
-"""共享工具 — 临时目录与魔数识别。"""
-from pathlib import Path
-from tempfile import mkdtemp
-
-
-def mktemp_in_dir(filepath: Path, prefix: str = 'tmp_') -> Path:
-    """
-    ## 在源文件目录的 temp/ 子目录下创建唯一临时文件夹。
-
-    Args:
-        filepath (Path): 参考文件路径。
-        prefix (str): 临时目录名称前缀，默认为 'tmp_'。
-
-    Returns:
-        temp_path (Path): 创建的临时目录路径。
-    """
-    temp_base = filepath.parent / 'temp'
-    temp_base.mkdir(parents=True, exist_ok=True)
-    return Path(mkdtemp(prefix=prefix, dir=str(temp_base)))
-
+"""共享工具 — 魔数识别。"""
 
 # ===================================================================
 #  魔数识别 — 通过文件头部字节识别文件类型

@@ -14,6 +14,7 @@ tools:
     - bash
     - write
 ---
+
 # Read Documents Skills
 
 ## Auto-invoke rule
@@ -31,6 +32,8 @@ If the goal is to **write content into** a docx template (fill sections, insert 
 
 That path reliably produces reversed content, wrong styles, and missing images. Instead use the **`template-write`** skill: `python -m fill_template --scan` shows the structure + styles, then `--section-data-file` fills it correctly with image embedding and auto-verification.
 
+> **Location**: `template-write` lives in the **same skills directory as this skill** — i.e. `~/.config/opencode/skills/template-write/` (or `~/.claude/skills/template-write/` in a Claude Code install). Do NOT assume it is elsewhere; if your install path for this skill is X, then `template-write` is at `X/../template-write/`.
+
 `read_documents` is for **reading** (understanding what's there). `template-write` is for **writing** (putting content in). Don't blur the two.
 
 ---
@@ -38,23 +41,26 @@ That path reliably produces reversed content, wrong styles, and missing images. 
 All files live under `~/.config/opencode/skills/read_documents/`. Invoke via:
 
 ```bash
-_P="$(pwd)" && cd ~/.config/opencode/skills/read_documents && python -m extract_files \
-  --paths-file "$_P/temp/tmp_targets.txt"
+# workdir = <skill 目录>（~/.config/opencode/skills/read_documents/）
+python -m extract_files \
+  --paths-file "<PROJECT>/temp/tmp_targets.txt"
 ```
 
 > **SKILL_DIR:** adjust if installed elsewhere. Use **absolute paths** for `--paths-file` and `--assets-dir` so output lands in the project directory.
+>
+> **Shell compatibility:** the command above is identical in bash and PowerShell — run it with the working directory set to the skill folder (the `workdir` parameter), NOT via `cd ... && ...`. **PowerShell 5.1 does not support `&&` or `$(pwd)`**; always pass absolute paths instead of `$_P`-style variables. All examples below follow this form.
 
 ## Format support
 
-| Format  | Text                          | Assets                             | Notes                   |
-| ------- | ----------------------------- | ---------------------------------- | ----------------------- |
-| `.docx` | `python-docx`                 | `word/media/` + `word/embeddings/` | Pure Python (no Office) |
-| `.doc`  | `python-docx` -> COM fallback | ZIP/XML or**NO**                   | COM needs Office (Win)  |
-| `.pptx` | `python-pptx`                 | `ppt/media/` + `ppt/embeddings/`   | Pure Python (no Office) |
-| `.ppt`  | COM via PowerShell            | **NO**                             | COM needs Office (Win)  |
-| `.pdf`  | `PyMuPDF`                     | PyMuPDF per-page                   | Pure Python (no Office) |
-| `.xlsx` | `openpyxl`                    | `xl/media/`                        | Pure Python (no Office) |
-| `.xls`  | `xlrd` -> COM fallback        | **NO**                             | COM needs Office (Win)  |
+| Format  | Text                         | Assets                             | Notes                   |
+| ------- | ---------------------------- | ---------------------------------- | ----------------------- |
+| `.docx` | `python-docx`                | `word/media/` + `word/embeddings/` | Pure Python (no Office) |
+| `.doc`  | `python-docx` -> COM convert | ZIP/XML (converted)                | COM needs Office (Win)  |
+| `.pptx` | `python-pptx`                | `ppt/media/` + `ppt/embeddings/`   | Pure Python (no Office) |
+| `.ppt`  | `python-pptx` -> COM convert | ZIP/XML (converted)                | COM needs Office (Win)  |
+| `.pdf`  | `PyMuPDF`                    | PyMuPDF per-page                   | Pure Python (no Office) |
+| `.xlsx` | `openpyxl`                   | `xl/media/`                        | Pure Python (no Office) |
+| `.xls`  | `xlrd` -> COM convert        | ZIP/XML (converted)                | COM needs Office (Win)  |
 
 Encrypted ZIP entries are noted but never block extraction.
 
@@ -74,8 +80,8 @@ Use `--section KEYWORD` to extract only matching sections — **saves output tok
 | `.xlsx` / `.xls` | Sheet markers whose name/content matches                                  |
 
 ```bash
-_P="$(pwd)" && cd ~/.config/opencode/skills/read_documents && python -m extract_files \
-  --paths-file "$_P/temp/tmp_targets.txt" \
+python -m extract_files \
+  --paths-file "<PROJECT>/temp/tmp_targets.txt" \
   --section "<KEYWORD>"
 ```
 
@@ -103,9 +109,9 @@ Pages with tables are **never** auto-rendered — structured table data is more 
 Every page includes `[meta]` metadata at the end. If you (the AI) judge a page needs rendering that Layer 1 missed, re-run with `--render-page`:
 
 ```bash
-_P="$(pwd)" && cd ~/.config/opencode/skills/read_documents && python -m extract_files \
-  --paths-file "$_P/temp/tmp_targets.txt" \
-  --assets-dir "$_P/temp/assets" \
+python -m extract_files \
+  --paths-file "<PROJECT>/temp/tmp_targets.txt" \
+  --assets-dir "<PROJECT>/temp/assets" \
   --render-page 7 14
 ```
 
@@ -148,7 +154,7 @@ This forces the specified pages (1-based) to render as images, **overriding** th
 When you need to **find** files by keyword. `--root` must be ASCII-safe; Chinese matching via `--glob`:
 
 ```bash
-_P="$(pwd)" && cd ~/.config/opencode/skills/read_documents && python -m extract_files \
+python -m extract_files \
   --root "<ASCII-safe ancestor>" \
   --glob "<Chinese keyword>"
 ```
@@ -170,8 +176,8 @@ Content:
 > Write the paths file in the project directory's **temp/** subdirectory.
 
 ```bash
-_P="$(pwd)" && cd ~/.config/opencode/skills/read_documents && python -m extract_files \
-  --paths-file "$_P/temp/tmp_targets.txt"
+python -m extract_files \
+  --paths-file "<PROJECT>/temp/tmp_targets.txt"
 ```
 
 ---
@@ -193,6 +199,6 @@ _P="$(pwd)" && cd ~/.config/opencode/skills/read_documents && python -m extract_
 | `--paths-file PATH`       | DIRECT | UTF-8 file, one path per line                        |
 | `--section STR`           | both   | Only extract matching section                        |
 | `--list-only`             | SEARCH | List files, skip extraction                          |
-| `--assets-dir PATH`       | both   | Extract assets (use `$_P/...` absolute path)         |
+| `--assets-dir PATH`       | both   | Extract assets (use absolute path)                   |
 | `--render-page N [N ...]` | DIRECT | Force-render PDF pages as images (1-based, PDF only) |
 | `--max-depth N`           | SEARCH | Max directory depth (default 6)                      |

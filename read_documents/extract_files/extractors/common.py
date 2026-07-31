@@ -1,6 +1,7 @@
 """
-# 公共工具 — COM 僵尸清理、脚本路径解析、提取作业封装。
-- 各格式提取器共用这里的函数、路径常量和 ExtractJob 类型。
+# 公共工具 — COM 僵尸清理、提取作业封装。
+- 各格式提取器共用这里的函数和 ExtractJob 类型。
+- COM 调用（pywin32）直接在进程内完成，不再需要外部 ps1 脚本。
 """
 
 from dataclasses import dataclass
@@ -27,12 +28,11 @@ class ExtractJob:
 
 def kill_orphan_com(process_name: str) -> None:
     """
-    ## 清理超时后残留的 Office COM 僵尸进程。
+    ## 清理 COM 调用失败后残留的 Office 僵尸进程。
 
-    - 当 subprocess.run 抛出 TimeoutExpired 时子进程已被杀掉，但
-      PowerShell 启动的 COM 服务器可能仍残留在系统中。
-    - 使用 taskkill /FI
-      "STATUS eq NOT RESPONDING"，只杀死无响应的进程，不影响用户正在使用的 Office 窗口。
+    - 当 ``Application.Quit()`` 失败或进程被中断时，Office 进程可能仍残留。
+    - 使用 ``taskkill /FI "STATUS eq NOT RESPONDING"``，只杀死无响应的进程，
+      不影响用户正在使用的 Office 窗口。
 
     Args:
         process_name (str): 进程映像名称（如 'WINWORD.EXE'）。
@@ -50,10 +50,3 @@ def kill_orphan_com(process_name: str) -> None:
         )
     except Exception:
         pass  # 尽力而为，不因清理失败而崩溃
-
-
-# COM 辅助脚本路径 — ps1_scripts/ 目录
-_SCRIPT_DIR = Path(__file__).resolve().parent.parent.parent / 'ps1_scripts'
-PPT_SCRIPT: Path = _SCRIPT_DIR / 'extract_ppt.ps1'
-DOC_SCRIPT: Path = _SCRIPT_DIR / 'extract_doc.ps1'
-XLS_SCRIPT: Path = _SCRIPT_DIR / 'extract_xls.ps1'

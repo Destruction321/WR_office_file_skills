@@ -67,6 +67,77 @@ def insert_items(doc, anchor, items: list[Item]) -> tuple[int, int, Any, Any]:
     return para_count, img_count, first_p, anchor
 
 
+def insert_items_into_cell(cell, doc, items: list[Item]) -> tuple[int, int, Any, Any]:
+    """
+    ## 将内容项逐个构建为段落，插入到单元格终止段（最后一个 w:p）之前。
+
+    每个新段落都插在终止段前，保持 items 顺序；终止段保留以满足
+    w:tc 必须以 w:p 结尾的架构约束（通常是签名行等既有内容）。
+
+    Args:
+        cell: w:tc 元素（目标单元格）。
+        doc: docx.Document
+        items (list[Item]): 内容项列表。
+
+    Returns:
+        (para_count, img_count, first_p, last_p) (tuple[int, int, Any, Any]):
+            插入的段落数与图片数，以及首末段落（供调用方打 bookmark 标记）。
+    """
+    p_tag = _qn("w:p")
+    paras = cell.findall(p_tag)
+    if not paras:
+        raise ValueError('表格单元格内没有段落，无法插入')
+    terminal = paras[-1]
+
+    para_count = 0
+    img_count = 0
+    first_p = None
+    last_p = None
+    for item in items:
+        if isinstance(item, ImageItem):
+            p = _build_image_para(doc, item)
+            img_count += 1
+        else:
+            p = _build_text_para(doc, item)
+            para_count += 1
+        terminal.addprevious(p)
+        if first_p is None:
+            first_p = p
+        last_p = p
+
+    return para_count, img_count, first_p, last_p
+
+
+def remove_empty_paras_in_cell(cell) -> int:
+    """
+    ## 删除单元格内的空段落（保留终止段，满足 w:tc 架构约束），返回删除数。
+
+    表内占位答案区的典型形态：单元格内 N 个空段落 + 签名行。
+    填充前删除这些占位空段，再在终止段前插入内容。
+
+    Args:
+        cell: w:tc 元素。
+
+    Returns:
+        removed (int): 删除的空段落数。
+    """
+    p_tag = _qn("w:p")
+    t_tag = _qn("w:t")
+    paras = cell.findall(p_tag)
+    if not paras:
+        return 0
+    terminal = paras[-1]
+
+    removed = 0
+    for p in paras[:-1]:
+        text = ''.join(t.text or '' for t in p.iter(t_tag)).strip()
+        if text:
+            continue
+        cell.remove(p)
+        removed += 1
+    return removed
+
+
 def mark_section_start(first_para, last_para, sec_id: str) -> None:
     """
     在 first_para 前插入 bookmarkStart、last_para 后插入 bookmarkEnd
@@ -119,8 +190,9 @@ def clear_section_marks(body) -> None:
 def count_paras_in_section(body, sec_id: str) -> tuple[int, int]:
     """
     找到 name==sec_id 的 bookmarkStart，数到对应 bookmarkEnd 之间的
-    `<w:p>` 元素（仅 body 直接子级，不含表格内嵌段落），返回 (total_paras, non_empty_paras)。
-    
+    `<w:p>` 元素（递归遍历，body 级与表格单元格内的标记均支持），
+    返回 (total_paras, non_empty_paras)。
+
     Args:
         body: docx.Document.body
         sec_id (str): bookmark name，通常为 "sec:数字"。
@@ -140,31 +212,31 @@ def count_paras_in_section(body, sec_id: str) -> tuple[int, int]:
         if el.get(name_attr) == sec_id:
             target_id = el.get(id_attr)
             break
-    
+
     if target_id is None:
         return 0, 0
 
     total = 0
     non_empty = 0
     counting = False
-    for el in body:
+    for el in body.iter():
         if el.tag == start_tag:
             if el.get(id_attr) == target_id:
                 counting = True
             continue
-        
+
         if el.tag == end_tag:
             if el.get(id_attr) == target_id:
                 break
             continue
-        
+
         if not counting or el.tag != p_tag:
             continue
-        
+
         total += 1
         if ("".join(t.text or "" for t in el.iter(t_tag)).strip()):
             non_empty += 1
-    
+
     return total, non_empty
 
 
