@@ -24,7 +24,7 @@ Claude Code 技能集合 —— 增强 AI 对文档文件的读写能力。
 | `.docx` / `.pptx` / `.xlsx` | OOXML 格式，Python 库直接读取（跨平台） |
 | `.pdf`                      | pdfplumber + PyMuPDF（跨平台）          |
 | `.xls`                      | xlrd 直接处理（跨平台）                 |
-| `.doc` / `.ppt`             | COM 回退（仅 Windows + Office）         |
+| `.doc` / `.ppt`             | pywin32 COM 回退（仅 Windows + Office） |
 
 **特性：**
 
@@ -50,7 +50,7 @@ Claude Code 技能集合 —— 增强 AI 对文档文件的读写能力。
 | 节级填充   | `--section-data-file`、`--heading-style`、`--section-mode`、`--dry-run` |
 | 占位符替换 | `--set` / `--data` / `--data-file`、`--pattern`                         |
 
-**支持格式：** `.docx`（节级填充 + 占位符替换）、`.md`/`.txt`（占位符替换）
+**支持格式：** `.docx` / `.doc`（节级填充 + 占位符替换；`.doc` 自动转换为 `.docx` 工作副本，原文件不动）、`.md`/`.txt`（占位符替换）
 
 > `.xlsx`/`.pptx`/`.csv` 不纳入支持——无模板场景或模板过于复杂。
 
@@ -63,7 +63,7 @@ Claude Code 技能集合 —— 增强 AI 对文档文件的读写能力。
 git clone https://github.com/Destruction321/WR_office_file_skills.git ~/.claude/skills
 
 # 安装全部依赖（如需）
-pip install python-docx python-pptx PyMuPDF openpyxl chardet olefile xlrd
+pip install python-docx python-pptx PyMuPDF openpyxl chardet olefile xlrd pywin32
 ```
 
 > 各 skill 首次使用时若发现缺失包会自动安装，无需手动预装。
@@ -79,27 +79,23 @@ pip install python-docx python-pptx PyMuPDF openpyxl chardet olefile xlrd
 ├── .gitignore
 ├── read_documents/              # 文档读取技能
 │    ├── SKILL.md                 # 给 AI 的调用指引
-│    ├── extract_files/           # Python 包
-│    │    ├── __init__.py          # 公开 API：extract_file, EXTRACTORS
-│    │    ├── __main__.py          # CLI 入口（python -m）
-│    │    ├── cli.py               # 参数解析、流程编排
-│    │    ├── discovery.py         # 文件发现、MSYS 路径转换
-│    │    ├── deps.py              # 自动安装依赖
-│    │    ├── assets.py            # 图片/媒体/OLE 资源提取
-│    │    ├── ole.py               # OLE 复合文档分解
-│    │    ├── section.py           # 按关键字过滤小节
-│    │    ├── util.py              # 临时目录、魔数识别
-│    │    └── extractors/          # 按格式拆分的提取器子包
-│    │         ├── __init__.py      # 格式分发器 + extract_file()
-│    │         ├── common.py        # COM 清理、脚本路径
-│    │         ├── docx_extractor.py
-│    │         ├── pptx_extractor.py
-│    │         ├── xlsx_extractor.py
-│    │         └── pdf_extractor.py
-│    └── ps1_scripts/             # COM 回退脚本（仅 Windows）
-│         ├── extract_doc.ps1
-│         ├── extract_ppt.ps1
-│         └── extract_xls.ps1
+│    └── extract_files/           # Python 包
+│         ├── __init__.py          # 公开 API：extract_file, EXTRACTORS
+│         ├── __main__.py          # CLI 入口（python -m）
+│         ├── cli.py               # 参数解析、流程编排
+│         ├── discovery.py         # 文件发现、MSYS 路径转换
+│         ├── deps.py              # 自动安装依赖
+│         ├── assets.py            # 图片/媒体/OLE 资源提取
+│         ├── ole.py               # OLE 复合文档分解
+│         ├── section.py           # 按关键字过滤小节
+│         ├── util.py              # 魔数识别
+│         └── extractors/          # 按格式拆分的提取器子包
+│              ├── __init__.py      # 格式分发器 + extract_file()
+│              ├── common.py        # COM 僵尸清理、提取作业封装
+│              ├── docx_extractor.py
+│              ├── pptx_extractor.py
+│              ├── xlsx_extractor.py
+│              └── pdf_extractor.py
 └── template-write/              # 模板填写技能
      ├── SKILL.md                 # 给 AI 的调用指引
      └── fill_template/           # 可复用的模板填写包
@@ -108,6 +104,7 @@ pip install python-docx python-pptx PyMuPDF openpyxl chardet olefile xlrd
           ├── cli.py                 # 参数解析、模式分发
           ├── filler.py              # 占位符替换主入口、格式分发
           ├── deps.py                # 自动安装依赖
+          ├── doc_convert.py         # .doc 转换适配层（pywin32 COM）
           ├── md_parser.py           # Markdown -> 节内容解析
           ├── text_filler.py         # md/txt 占位符替换
           └── docx/                  # docx 操作子包

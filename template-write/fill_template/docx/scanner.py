@@ -36,6 +36,15 @@ class _ScanResult:
     stats: _StyleStats
 
 
+@dataclass(frozen=True)
+class _TableInfo:
+    """表格快照：body 索引 + 是否有内容 + 文本预览 + 单元格内空段落数。"""
+    idx: int
+    has_content: bool
+    preview: str
+    empty_paras: int = 0
+
+
 type _Paras = list[_Para]  # 段落列表，按文档顺序
 
 
@@ -66,6 +75,52 @@ def collect_paragraphs(body, qn) -> _ScanResult:
             texts.setdefault(style, []).append(text)
 
     return _ScanResult(all_paras, _StyleStats(counts, texts))
+
+
+def collect_tables(body, qn) -> list[_TableInfo]:
+    """
+    ## 收集 body 直接子元素中的表格（w:tbl）信息。
+
+    段落与表格按文档顺序混排，idx 即该表格在 body 中的索引，
+    供 AI 判断「标题后是否有空表格作为答案区」。
+
+    Args:
+        body: docx.Document.body
+        qn: docx.oxml.ns.qn 函数
+
+    Returns:
+        tables (list[_TableInfo]): 表格快照列表，按文档顺序。
+        - empty_paras 统计**单元格内空段落数**——表内占位答案区的判据
+          （如「标题 + 签名表(内含 41 个空段)」的书写区）。
+    """
+    tables: list[_TableInfo] = []
+    for i, child in enumerate(body):
+        if child.tag != qn('w:tbl'):
+            continue
+        paras = child.findall('.//' + qn('w:p'))
+        texts = [''.join(t.text or '' for t in p.iter(qn('w:t'))).strip() for p in paras]
+        empties = sum(1 for t in texts if not t)
+        joined = ''.join(texts).strip()
+        tables.append(_TableInfo(
+            idx=i, has_content=bool(joined), preview=joined[:40], empty_paras=empties,
+        ))
+
+    return tables
+
+
+def print_tables(tables: list[_TableInfo]) -> None:
+    """打印表格结构，标注空表格与单元格内空段数。"""
+    if not tables:
+        return
+
+    empty = sum(1 for t in tables if not t.has_content)
+    print(f"\nTables: {len(tables)} total, {empty} empty")
+    for t in tables:
+        hint = f"  单元格内空段: {t.empty_paras}" if t.empty_paras else ""
+        if t.has_content:
+            print(f"  idx={t.idx} [有内容] {t.preview}{hint}")
+        else:
+            print(f"  idx={t.idx} [空表格]{hint}")
 
 
 def identify_headings(scan: _ScanResult) -> tuple[_Paras, set[str]]:

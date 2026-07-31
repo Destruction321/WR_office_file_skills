@@ -4,6 +4,7 @@ from json import load, loads
 from pathlib import Path
 from shutil import copy2
 from sys import exit, stderr
+from tempfile import mkdtemp
 
 from .items import ImageItem, item_from_dict
 from .md_parser import parse_sections_md
@@ -31,8 +32,8 @@ def _build_parser() -> ArgumentParser:
         help='节级填充的 JSON/Markdown 文件（标题 -> 内容项列表）',
     )
     parser.add_argument(
-        '--section-mode', choices=('replace', 'append'), default='replace',
-        help='节级填充模式：replace（清空旧内容）/ append（追加），默认 replace',
+        '--section-mode', choices=('replace', 'append', 'cell'), default='replace',
+        help='节级填充模式：replace（清空旧内容）/ append（追加）/ cell（表内占位替换），默认 replace',
     )
     parser.add_argument(
         '--heading-style',
@@ -64,8 +65,8 @@ def _run_section_fill(args: Namespace,
                       template: Path,
                       output: Path,
                       same_file: bool,
-                      fill_docx_sections) -> None:
-    """节级填充模式：按标题注入段落和图片。"""
+                      fill_docx_sections) -> int:
+    """节级填充模式：按标题注入段落和图片。返回填充的节数。"""
     section_path = Path(args.section_data_file)
     if not section_path.exists():
         print(f'错误: 数据文件不存在: {section_path}', file=stderr)
@@ -126,12 +127,15 @@ def _run_section_fill(args: Namespace,
         exit(1)
     if args.dry_run:
         print(f'Dry-run on template: {template}')
-    else:
-        print(f'已填充 {count} 个节: {output}')
+    return count
 
 
-def _run_placeholder_fill(args: Namespace, output: Path, same_file: bool, fill_template) -> None:
-    """占位符模式：替换 {{name}} 等占位符。"""
+def _run_placeholder_fill(args: Namespace,
+                          template: Path,
+                          output: Path,
+                          same_file: bool,
+                          fill_template) -> Path:
+    """占位符模式：替换 {{name}} 等占位符。返回输出文件路径。"""
     if same_file:
         print('错误: --output 不能与 --template 相同。模板填写始终输出到新文件。', file=stderr)
         exit(1)
@@ -176,11 +180,11 @@ def _run_placeholder_fill(args: Namespace, output: Path, same_file: bool, fill_t
         exit(1)
 
     try:
-        result = fill_template(args.template, args.output, content_map, args.pattern)
+        fill_template(template, str(output), content_map, args.pattern)
     except Exception as e:
         print(f'错误: 填写失败: {e}', file=stderr)
         exit(1)
-    print(f'已写入: {result}')
+    return output
 
 
 def main() -> None:
@@ -198,22 +202,72 @@ def main() -> None:
         print(f'错误: 模板不存在: {template}', file=stderr)
         exit(1)
 
-    if args.scan:
-        _run_scan(template, scan_docx)
-        return
+    # .doc 适配：转换为临时 .docx 工作副本，原始 .doc 永不被修改
+    doc_cleanup = None
+    doc_out_workdir = None
+    if template.suffix.lower() == '.doc':
+        from .doc_convert import prepare_doc_template
+        try:
+            template, doc_cleanup = prepare_doc_template(template)
+            print('[.doc 适配] 已将模板转换为 .docx 工作副本（原始 .doc 未修改）', file=stderr)
+        except Exception as e:
+            print(f'错误: .doc 转换失败: {e}', file=stderr)
+            exit(1)
 
-    if not args.output:
-        print('错误: 非扫描模式下 --output 是必需的。', file=stderr)
-        exit(1)
+    try:
+        if args.scan:
+            _run_scan(template, scan_docx)
+            return
 
-    output = Path(args.output)
-    same_file = template.resolve() == output.resolve()
+        if not args.output:
+            print('错误: 非扫描模式下 --output 是必需的。', file=stderr)
+            exit(1)
 
-    if args.section_data_file:
-        _run_section_fill(args, template, output, same_file, fill_docx_sections)
-        return
+        output = Path(args.output)
 
-    _run_placeholder_fill(args, output, same_file, fill_template)
+        # 用户要求 .doc 输出时，先填写到临时 .docx，最后再转回 .doc
+        want_doc_output = output.suffix.lower() == '.doc'
+        real_output = output
+        if want_doc_output:
+            doc_out_workdir = Path(mkdtemp(prefix='ft_docout_'))
+            output = doc_out_workdir / (output.stem + '.docx')
+
+        same_file = template.resolve() == output.resolve()
+
+        if args.section_data_file:
+            count = _run_section_fill(args, template, output, same_file, fill_docx_sections)
+            if args.dry_run:
+                return
+            
+            if want_doc_output:
+                from .doc_convert import convert_to_doc
+                try:
+                    convert_to_doc(output, real_output)
+                except Exception as e:
+                    print(f'错误: 转回 .doc 失败: {e}', file=stderr)
+                    exit(1)
+            
+            print(f'已填充 {count} 个节: {real_output if want_doc_output else output}')
+        else:
+            _run_placeholder_fill(args, template, output, same_file, fill_template)
+            if not want_doc_output:
+                print(f'已写入: {output}')
+                return
+
+            from .doc_convert import convert_to_doc
+            try:
+                convert_to_doc(output, real_output)
+            except Exception as e:
+                print(f'错误: 转回 .doc 失败: {e}', file=stderr)
+                exit(1)
+            print(f'已写入: {real_output}')
+
+    finally:
+        if doc_out_workdir:
+            from .doc_convert import rmtree_retry
+            rmtree_retry(doc_out_workdir)
+        if doc_cleanup:
+            doc_cleanup()
 
 
 if __name__ == '__main__':
